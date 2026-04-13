@@ -625,11 +625,11 @@ MonoBehaviour:
   _ionServer: {fileID: 11400000, guid: c6b4f238e311a4972952d04922d37df7, type: 2}
   _maximumScreenSpaceError: 16
   _preloadAncestors: 1
-  _preloadSiblings: 1
+  _preloadSiblings: 0
   _forbidHoles: 1
-  _maximumSimultaneousTileLoads: 20
-  _maximumCachedBytes: 536870912
-  _loadingDescendantLimit: 20
+  _maximumSimultaneousTileLoads: 5
+  _maximumCachedBytes: 1073741824
+  _loadingDescendantLimit: 120
   _enableFrustumCulling: 1
   _enableFogCulling: 1
   _enforceCulledScreenSpaceError: 1
