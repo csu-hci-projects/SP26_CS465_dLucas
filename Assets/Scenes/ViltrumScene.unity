@@ -438,13 +438,14 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 723216082}
   serializedVersion: 2
-  m_LocalRotation: {x: 1.3877788e-17, y: 1.2144546e-17, z: -4.3278425e-18, w: 1}
+  m_LocalRotation: {x: 9.7144515e-17, y: 1.2966509e-17, z: 1.9276925e-18, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 757727460}
   - {fileID: 859598872}
+  - {fileID: 1851949481}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &723216086
@@ -465,16 +466,16 @@ MonoBehaviour:
     c0:
       x: 0.9659709840219863
       y: -0.25865045530134906
-      z: -0.000000000000000016140611793916016
+      z: -0.00000000000000001747677407986912
       w: 0
     c1:
-      x: -0.1988923246873125
-      y: -0.7427948053243637
-      z: 0.639294705408716
+      x: -0.19889232468731247
+      y: -0.7427948053243636
+      z: 0.6392947054087161
       w: 0
     c2:
-      x: 0.16535386662570625
-      y: 0.6175401356637032
+      x: 0.16535386662570628
+      y: 0.6175401356637034
       z: 0.7689618193619124
       w: 0
     c3:
@@ -532,19 +533,19 @@ MonoBehaviour:
   _tilesetSource: 0
   _url: 
   _ionAssetID: 354307
-  _ionAccessToken: 
+  _ionAccessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI2NTE3Y2RkMC1jYjRmLTRjZjUtOWFiYS1mZjA4OTM2YjJhNjAiLCJpZCI6NDA5MTgzLCJpYXQiOjE3NzQ2NTA5ODR9.09ZBoRvZWA3zOOaORXmgCh4zeuZBEj5VoFFYuf_pycQ
   _ionServer: {fileID: 11400000, guid: c6b4f238e311a4972952d04922d37df7, type: 2}
-  _maximumScreenSpaceError: 16
+  _maximumScreenSpaceError: 1
   _preloadAncestors: 1
   _preloadSiblings: 1
-  _forbidHoles: 0
-  _maximumSimultaneousTileLoads: 20
-  _maximumCachedBytes: 536870912
-  _loadingDescendantLimit: 20
+  _forbidHoles: 1
+  _maximumSimultaneousTileLoads: 80
+  _maximumCachedBytes: 2147483648
+  _loadingDescendantLimit: 80
   _enableFrustumCulling: 1
   _enableFogCulling: 1
   _enforceCulledScreenSpaceError: 1
-  _culledScreenSpaceError: 64
+  _culledScreenSpaceError: 32
   _opaqueMaterial: {fileID: 0}
   _generateSmoothNormals: 0
   _ignoreKhrMaterialsUnlit: 0
@@ -606,19 +607,19 @@ MonoBehaviour:
   _tilesetSource: 0
   _url: 
   _ionAssetID: 2275207
-  _ionAccessToken: 
+  _ionAccessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI2NTE3Y2RkMC1jYjRmLTRjZjUtOWFiYS1mZjA4OTM2YjJhNjAiLCJpZCI6NDA5MTgzLCJpYXQiOjE3NzQ2NTA5ODR9.09ZBoRvZWA3zOOaORXmgCh4zeuZBEj5VoFFYuf_pycQ
   _ionServer: {fileID: 11400000, guid: c6b4f238e311a4972952d04922d37df7, type: 2}
-  _maximumScreenSpaceError: 16
+  _maximumScreenSpaceError: 1
   _preloadAncestors: 1
   _preloadSiblings: 1
-  _forbidHoles: 0
-  _maximumSimultaneousTileLoads: 20
-  _maximumCachedBytes: 536870912
-  _loadingDescendantLimit: 20
+  _forbidHoles: 1
+  _maximumSimultaneousTileLoads: 80
+  _maximumCachedBytes: 2147483648
+  _loadingDescendantLimit: 80
   _enableFrustumCulling: 1
   _enableFogCulling: 1
   _enforceCulledScreenSpaceError: 1
-  _culledScreenSpaceError: 64
+  _culledScreenSpaceError: 32
   _opaqueMaterial: {fileID: 0}
   _generateSmoothNormals: 0
   _ignoreKhrMaterialsUnlit: 0
@@ -815,7 +816,7 @@ Camera:
     width: 1
     height: 1
   near clip plane: 0.01
-  far clip plane: 1000
+  far clip plane: 100000
   field of view: 60
   orthographic: 0
   orthographic size: 5
@@ -870,24 +871,24 @@ MonoBehaviour:
   _detectTransformChanges: 1
   _localToGlobeFixedMatrix:
     c0:
-      x: -1
-      y: 0
-      z: 0
+      x: 0.9659709840219863
+      y: -0.25865045530134906
+      z: 0.000000000000000021610195319635235
       w: 0
     c1:
-      x: 0
-      y: 1
-      z: 0
+      x: -0.19889232468731255
+      y: -0.7427948053243638
+      z: 0.6392947054087159
       w: 0
     c2:
-      x: 0
-      y: 0
-      z: 1
+      x: 0.1653538666257062
+      y: 0.6175401356637031
+      z: 0.7689618193619127
       w: 0
     c3:
-      x: 0
-      y: 0
-      z: 0
+      x: -1270632.9734236868
+      y: -4745337.622982811
+      z: 4056776.8799706404
       w: 1
   _localToGlobeFixedMatrixIsValid: 1
 --- !u!114 &1851949479
@@ -929,13 +930,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1851949477}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalRotation: {x: -5.551115e-17, y: -1.4864815e-18, z: 1.5113609e-17, w: 1}
   m_LocalPosition: {x: -10.846926, y: 1.4590933, z: -10.045022}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 478519092}
-  m_Father: {fileID: 0}
+  m_Father: {fileID: 723216085}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1851949482
 MonoBehaviour:
@@ -949,11 +950,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3bef32f31a547984f88be1ab98b65f04, type: 3}
   m_Name: 
   m_EditorClassIdentifier: CesiumForUnity::CesiumForUnity.CesiumOriginShift
-  _distance: 0
+  _distance: 10000
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
   - {fileID: 723216085}
-  - {fileID: 1851949481}
   - {fileID: 255081211}
