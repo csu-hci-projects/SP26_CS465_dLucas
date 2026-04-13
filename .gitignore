@@ -100,3 +100,5 @@ InitTestScene*.unity*
 
 #New:
 *_BackUpThisFolder_ButDontShipItWithYourGame/
+*_BurstDebugInformation_DoNotShip/
+*.symbols.zip
