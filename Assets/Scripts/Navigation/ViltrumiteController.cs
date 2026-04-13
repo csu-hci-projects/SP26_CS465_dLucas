@@ -18,37 +18,42 @@ namespace AerialNav.Navigation
         [Header("Speed Settings")]
         [Tooltip("Minimum extension from chest to register movement (meters)")]
         [SerializeField] private float minExtension = 0.25f;
-        
+
         [Tooltip("Maximum extension for full speed (meters)")]
         [SerializeField] private float maxExtension = 0.7f;
 
         [Header("Altitude Speed Tiers (m/s)")]
-        [SerializeField] private float speedTier0 = 10f;    // 0-10m
-        [SerializeField] private float speedTier1 = 50f;    // 10-100m
-        [SerializeField] private float speedTier2 = 200f;   // 100m-1km
-        [SerializeField] private float speedTier3 = 1000f;  // 1km-10km
-        [SerializeField] private float speedTier4 = 5000f;  // 10km+
+        [SerializeField] private float speedTier0 = 40f;
+        [SerializeField] private float speedTier1 = 200f;
+        [SerializeField] private float speedTier2 = 800f;
+        [SerializeField] private float speedTier3 = 4000f;
+        [SerializeField] private float speedTier4 = 20000f;
 
-        [Header("Deceleration")]
-        [Tooltip("Rate of velocity decay when hand opens (higher = faster stop)")]
+        [Header("Cinematic Motion")]
+        [Tooltip("Time constant (seconds) for velocity smoothing. ~0.85s gives 95% of target speed in ~2.5s.")]
+        [SerializeField] private float accelerationTau = 0.85f;
+
+        [Tooltip("Rate of velocity decay when hand opens.")]
         [SerializeField] private float decelerationRate = 4f;
 
         [Header("Terrain Safety")]
         [Tooltip("Minimum height above terrain (meters)")]
         [SerializeField] private float terrainFloorOffset = 2f;
-        
+
         [Tooltip("LayerMask for terrain raycasting")]
-        [SerializeField] private LayerMask terrainLayer = ~0; // Default: all layers
+        [SerializeField] private LayerMask terrainLayer = ~0;
 
         [Header("Debug")]
         [SerializeField] private bool enableDebugLogging = false;
 
         private Vector3 _currentVelocity = Vector3.zero;
+        private float _spawnAltitude = 0f;
         private const string LOG_TAG = "[ViltrumiteController]";
 
         private void Start()
         {
             ValidateReferences();
+            _spawnAltitude = xrOrigin != null ? xrOrigin.position.y : 0f;
         }
 
         private void Update()
@@ -73,34 +78,29 @@ namespace AerialNav.Navigation
             Vector3 handPosition = rightWristTransform.position;
             Vector3 headPosition = headTransform.position;
 
-            // Calculate extension (fist distance from head)
             float extension = Vector3.Distance(handPosition, headPosition);
 
-            // Dead zone check: fist too close to chest = hover
             if (extension < minExtension)
             {
                 if (enableDebugLogging)
-                {
                     Debug.Log($"{LOG_TAG} Hovering (extension {extension:F2}m < {minExtension}m)");
-                }
-                return; // Maintain current velocity (no acceleration, no deceleration)
+                return;
             }
 
-            // Calculate speed multiplier from extension
             float extensionNormalized = Mathf.InverseLerp(minExtension, maxExtension, extension);
             float maxSpeed = GetMaxSpeedForAltitude();
             float targetSpeed = extensionNormalized * maxSpeed;
 
-            // Direction from wrist orientation (forward vector of the hand)
             Vector3 flyDirection = rightWristTransform.forward;
+            Vector3 targetVelocity = flyDirection * targetSpeed;
 
-            // Set velocity
-            _currentVelocity = flyDirection * targetSpeed;
+            // Exponential smoothing toward target velocity for cinematic acceleration.
+            // alpha = 1 - e^(-dt/tau): at tau=0.85s, reaches ~95% of target in ~2.5s.
+            float alpha = 1f - Mathf.Exp(-Time.deltaTime / accelerationTau);
+            _currentVelocity = Vector3.Lerp(_currentVelocity, targetVelocity, alpha);
 
             if (enableDebugLogging)
-            {
-                Debug.Log($"{LOG_TAG} Flying: dir={flyDirection}, speed={targetSpeed:F1}m/s, ext={extension:F2}m");
-            }
+                Debug.Log($"{LOG_TAG} Flying: dir={flyDirection}, speed={_currentVelocity.magnitude:F1}m/s, target={targetSpeed:F1}m/s, ext={extension:F2}m");
         }
 
         private void Decelerate()
@@ -114,9 +114,7 @@ namespace AerialNav.Navigation
             _currentVelocity = Vector3.Lerp(_currentVelocity, Vector3.zero, decelerationRate * Time.deltaTime);
 
             if (enableDebugLogging && _currentVelocity.sqrMagnitude > 0.1f)
-            {
                 Debug.Log($"{LOG_TAG} Decelerating: speed={_currentVelocity.magnitude:F1}m/s");
-            }
         }
 
         private void ApplyMovement()
@@ -128,42 +126,35 @@ namespace AerialNav.Navigation
 
         private void EnforceTerrainFloor()
         {
-            Vector3 origin = xrOrigin.position + Vector3.up * 10000f; // Ray from high above
-            
+            Vector3 origin = xrOrigin.position + Vector3.up * 10000f;
+
             if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, 20000f, terrainLayer))
             {
                 float minAllowedY = hit.point.y + terrainFloorOffset;
-                
+
                 if (xrOrigin.position.y < minAllowedY)
                 {
                     Vector3 corrected = xrOrigin.position;
                     corrected.y = minAllowedY;
                     xrOrigin.position = corrected;
-                    
-                    // Kill downward velocity on floor contact
+
                     if (_currentVelocity.y < 0)
-                    {
                         _currentVelocity.y = 0;
-                    }
 
                     if (enableDebugLogging)
-                    {
                         Debug.Log($"{LOG_TAG} Terrain floor enforced at y={minAllowedY:F1}");
-                    }
                 }
             }
         }
 
         private float GetMaxSpeedForAltitude()
         {
-            // Approximate altitude: distance from origin Y=0 or use head height
-            // For Cesium, we use the XR origin's height above the globe anchor
-            float altitude = xrOrigin.position.y;
+            float relativeAltitude = xrOrigin.position.y - _spawnAltitude;
 
-            if (altitude < 10f) return speedTier0;
-            if (altitude < 100f) return speedTier1;
-            if (altitude < 1000f) return speedTier2;
-            if (altitude < 10000f) return speedTier3;
+            if (relativeAltitude < 5f)    return speedTier0;
+            if (relativeAltitude < 50f)   return speedTier1;
+            if (relativeAltitude < 500f)  return speedTier2;
+            if (relativeAltitude < 5000f) return speedTier3;
             return speedTier4;
         }
 
@@ -173,9 +164,7 @@ namespace AerialNav.Navigation
             {
                 fistDetector = GetComponent<FistDetector>();
                 if (fistDetector == null)
-                {
                     Debug.LogError($"{LOG_TAG} FistDetector not found! Attach to same GameObject or assign in Inspector.");
-                }
             }
 
             if (xrOrigin == null)
@@ -207,9 +196,7 @@ namespace AerialNav.Navigation
             }
 
             if (rightWristTransform == null)
-            {
                 Debug.LogError($"{LOG_TAG} Right Wrist Transform must be assigned! Drag R_Wrist from Right Hand Tracking.");
-            }
         }
 
         private bool ReferencesValid()
