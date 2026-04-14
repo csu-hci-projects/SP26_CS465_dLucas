@@ -1,5 +1,5 @@
 # CS 465 Capstone: Flight Locomotion in World-Scale VR Environments
-**v1.0.3**
+**v1.0.4**
 
 ## Introduction
 
@@ -77,7 +77,7 @@ This repository contains the source code and documentation for a capstone resear
 
 - Checkpoint 1 Code Discussion (YouTube)
 - Checkpoint 1 Project Demonstration (YouTube)
-- Final Report (Overleaf)
+- [Overleaf](https://www.overleaf.com/read/kcccfsqhmnkw#d56e0b)
 - [ARCHITECTURE.md](ARCHITECTURE.md)
 - [VISION.md](VISION.md)
 
