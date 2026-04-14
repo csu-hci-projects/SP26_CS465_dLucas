@@ -8,26 +8,63 @@ This document delineates the architectural composition of the CS 465 Capstone pr
 
 ```
 SP26_CS465_dLucas/
+├── .gitignore
+├── .vscode/
+│   ├── extensions.json
+│   ├── launch.json
+│   └── settings.json
 ├── Assets/
+│   ├── CesiumSettings/
+│   │   └── Resources/
+│   │       ├── CesiumIonServers/       # Cesium Ion server configuration assets
+│   │       └── CesiumRuntimeSettings.asset  # Cesium runtime token/config
+│   ├── InputSystem_Actions.inputactions  # Default Unity Input System action map
+│   ├── Samples/
+│   │   └── XR Hands/
+│   │       └── 1.7.3/                  # XR Hands package sample assets (v1.7.3)
 │   ├── Scenes/
-│   │   ├── BaseScene.unity           # Foundational scene with tiling and XR Origin
-│   │   ├── ViltrumScene.unity        # Flight locomotion implementation
-│   │   └── MagicScene.unity          # Placeholder for future locomotion methods
+│   │   ├── BaseScene.unity             # Foundational scene with tiling and XR Origin
+│   │   ├── ViltrumScene.unity          # Flight locomotion implementation
+│   │   └── MagicScene.unity            # Placeholder for future locomotion methods
 │   ├── Scripts/
 │   │   ├── Gesture/
-│   │   │   └── FistDetector.cs       # Hand tracking fist gesture recognition
+│   │   │   └── FistDetector.cs         # Hand tracking fist gesture recognition
 │   │   └── Navigation/
-│   │       └── ViltrumiteController.cs  # Viltrumite flight locomotion logic
-│   ├── Prefabs/
-│   │   ├── LeftHandTracking.prefab   # Left hand tracking prefab
-│   │   └── RightHandTracking.prefab  # Right hand tracking prefab
+│   │       └── ViltrumiteController.cs # Viltrumite flight locomotion logic
+│   ├── TextMesh Pro/                   # TextMeshPro package assets (Unity-managed)
+│   ├── XR/
+│   │   ├── Loaders/
+│   │   │   └── OpenXRLoader.asset      # OpenXR loader configuration
+│   │   ├── Settings/
+│   │   │   ├── OpenXR Editor Settings.asset   # OpenXR editor-time settings
+│   │   │   └── OpenXR Package Settings.asset  # OpenXR feature/extension settings
+│   │   └── XRGeneralSettingsPerBuildTarget.asset  # XR build target config
 │   └── XRI/
-│       └── XRI Default Input Actions.inputactions  # XR input action mappings
+│       └── Settings/
+│           ├── Resources/              # XRI runtime resources
+│           └── XRInteractionEditorSettings.asset  # XR Interaction Toolkit editor config
 ├── Packages/
-│   ├── manifest.json
-│   └── packages-lock.json
+│   ├── manifest.json                   # Unity package dependencies
+│   └── packages-lock.json              # Resolved package versions lockfile
 ├── ProjectSettings/
-│   └── [Unity project configuration files]
+│   ├── Packages/
+│   │   └── com.unity.testtools.codecoverage/  # Code coverage tool settings
+│   ├── AudioManager.asset
+│   ├── DynamicsManager.asset
+│   ├── EditorBuildSettings.asset       # Scene build list (all 3 scenes registered)
+│   ├── EditorSettings.asset
+│   ├── GraphicsSettings.asset
+│   ├── InputManager.asset
+│   ├── MemorySettings.asset
+│   ├── ProjectSettings.asset           # Core Unity project settings (Android/Quest target)
+│   ├── ProjectVersion.txt              # Unity version pin (6000.0.31f1)
+│   ├── QualitySettings.asset
+│   ├── ShaderGraphSettings.asset
+│   ├── TagManager.asset
+│   ├── TimeManager.asset
+│   ├── XRSettings.asset
+│   └── [additional Unity config assets]
+├── SP26_CS465_dLucas.slnx              # Visual Studio solution file (Unity-generated)
 ├── README.md
 ├── ARCHITECTURE.md
 └── VISION.md
