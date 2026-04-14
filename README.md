@@ -1,11 +1,11 @@
 # CS 465 Capstone: Flight Locomotion in World-Scale VR Environments
-**v1.0.5**
+**v1.0.6**
 
 ## Introduction
 
 **Course:** CS 465: Multimodal Interaction for 3D User Interfaces (Spring 2026)  
 **Instructor:** Dr. Francisco R. Ortega  
-**Student:** D. Lucas  
+**Student:** Devin Lucas  
 **Last Updated:** April 14, 2026
 
 This repository contains the source code and documentation for a capstone research project investigating flight-based locomotion techniques within world-scale virtual reality environments. The project leverages Cesium for Unity to stream Google Photorealistic 3D Tiles, reconstructing Fort Collins, Colorado as a photogrammetric testbed for locomotion experimentation. A rudimentary "Viltrumite" flight locomotion method, inspired by the aerial mechanics depicted in the *Invincible* comic and television series, has been implemented as the initial locomotion paradigm. Future development will introduce additional locomotion techniques to facilitate comparative analysis of intuitiveness, user comfort, and navigational efficacy across varying flight modalities.
