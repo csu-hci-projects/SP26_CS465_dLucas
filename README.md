@@ -75,8 +75,7 @@ This repository contains the source code and documentation for a capstone resear
 
 ## Related Links
 
-- Checkpoint 1 Code Discussion (YouTube)
-- Checkpoint 1 Project Demonstration (YouTube)
+- [Checkpoint 1 Code Discussion and Project Demonstration](https://youtu.be/YAuNIUb0uPI)
 - [Repository](https://github.com/csu-hci-projects/SP26_CS465_dLucas.git)
 - [Overleaf](https://www.overleaf.com/read/kcccfsqhmnkw#d56e0b)
 - [ARCHITECTURE.md](ARCHITECTURE.md)
