@@ -1,5 +1,5 @@
 # CS 465 Capstone: Flight Locomotion in World-Scale VR Environments
-**v1.0.6**
+**v1.0.8**
 
 ## Introduction
 
