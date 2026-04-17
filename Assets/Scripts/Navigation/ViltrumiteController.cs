@@ -4,7 +4,8 @@ namespace AerialNav.Navigation
 {
     /// <summary>
     /// Viltrumite-style flight locomotion.
-    /// Fist = fly in hand direction, open hand = decelerate to hover.
+    /// Right fist = fly in hand direction. Open hand = decelerate to hover.
+    /// Dual fully-extended fists = 2x speed boost.
     /// Attach to Locomotion GameObject alongside FistDetector.
     /// </summary>
     public class ViltrumiteController : MonoBehaviour
@@ -14,27 +15,28 @@ namespace AerialNav.Navigation
         [SerializeField] private Transform xrOrigin;
         [SerializeField] private Transform headTransform;
         [SerializeField] private Transform rightWristTransform;
+        [SerializeField] private Transform leftWristTransform;
 
-        [Header("Speed Settings")]
-        [Tooltip("Minimum extension from chest to register movement (meters)")]
+        [Header("Extension Thresholds")]
+        [Tooltip("Minimum wrist-to-head distance to register movement (meters)")]
         [SerializeField] private float minExtension = 0.25f;
 
-        [Tooltip("Maximum extension for full speed (meters)")]
+        [Tooltip("Distance at which full speed is reached (meters)")]
         [SerializeField] private float maxExtension = 0.7f;
 
-        [Header("Altitude Speed Tiers (m/s)")]
-        [SerializeField] private float speedTier0 = 40f;
-        [SerializeField] private float speedTier1 = 200f;
-        [SerializeField] private float speedTier2 = 800f;
-        [SerializeField] private float speedTier3 = 4000f;
-        [SerializeField] private float speedTier4 = 20000f;
+        [Header("Speed")]
+        [Tooltip("Universal speed cap (m/s)")]
+        [SerializeField] private float maxSpeed = 4000f;
+
+        [Tooltip("Speed multiplier when both fists are fully extended simultaneously")]
+        [SerializeField] private float dualFistBoostMultiplier = 2f;
 
         [Header("Cinematic Motion")]
-        [Tooltip("Time constant (seconds) for velocity smoothing. ~0.85s gives 95% of target speed in ~2.5s.")]
-        [SerializeField] private float accelerationTau = 0.85f;
+        [Tooltip("Acceleration time constant (seconds). Higher = slower, weightier ramp-up.")]
+        [SerializeField] private float accelerationTau = 1.6f;
 
-        [Tooltip("Rate of velocity decay when hand opens.")]
-        [SerializeField] private float decelerationRate = 4f;
+        [Tooltip("Deceleration rate when hand opens. Lower = longer coast.")]
+        [SerializeField] private float decelerationRate = 2.5f;
 
         [Header("Terrain Safety")]
         [Tooltip("Minimum height above terrain (meters)")]
@@ -47,13 +49,11 @@ namespace AerialNav.Navigation
         [SerializeField] private bool enableDebugLogging = false;
 
         private Vector3 _currentVelocity = Vector3.zero;
-        private float _spawnAltitude = 0f;
         private const string LOG_TAG = "[ViltrumiteController]";
 
         private void Start()
         {
             ValidateReferences();
-            _spawnAltitude = xrOrigin != null ? xrOrigin.position.y : 0f;
         }
 
         private void Update()
@@ -61,13 +61,9 @@ namespace AerialNav.Navigation
             if (!ReferencesValid()) return;
 
             if (fistDetector.IsRightFist)
-            {
                 Fly();
-            }
             else
-            {
                 Decelerate();
-            }
 
             ApplyMovement();
             EnforceTerrainFloor();
@@ -75,32 +71,26 @@ namespace AerialNav.Navigation
 
         private void Fly()
         {
-            Vector3 handPosition = rightWristTransform.position;
-            Vector3 headPosition = headTransform.position;
+            float extension = Vector3.Distance(rightWristTransform.position, headTransform.position);
 
-            float extension = Vector3.Distance(handPosition, headPosition);
-
-            if (extension < minExtension)
-            {
-                if (enableDebugLogging)
-                    Debug.Log($"{LOG_TAG} Hovering (extension {extension:F2}m < {minExtension}m)");
-                return;
-            }
+            if (extension < minExtension) return;
 
             float extensionNormalized = Mathf.InverseLerp(minExtension, maxExtension, extension);
-            float maxSpeed = GetMaxSpeedForAltitude();
-            float targetSpeed = extensionNormalized * maxSpeed;
+            bool isDualBoostActive = IsDualFistBoostActive(extensionNormalized);
 
-            Vector3 flyDirection = rightWristTransform.forward;
-            Vector3 targetVelocity = flyDirection * targetSpeed;
+            float speed = extensionNormalized * maxSpeed;
+            if (isDualBoostActive)
+                speed *= dualFistBoostMultiplier;
 
-            // Exponential smoothing toward target velocity for cinematic acceleration.
-            // alpha = 1 - e^(-dt/tau): at tau=0.85s, reaches ~95% of target in ~2.5s.
+            Vector3 targetVelocity = rightWristTransform.forward * speed;
+
+            // Exponential smoothing: alpha = 1 - e^(-dt/tau)
+            // At tau=1.6s, reaches ~95% of target speed in ~4.8s — weighty, cinematic.
             float alpha = 1f - Mathf.Exp(-Time.deltaTime / accelerationTau);
             _currentVelocity = Vector3.Lerp(_currentVelocity, targetVelocity, alpha);
 
             if (enableDebugLogging)
-                Debug.Log($"{LOG_TAG} Flying: dir={flyDirection}, speed={_currentVelocity.magnitude:F1}m/s, target={targetSpeed:F1}m/s, ext={extension:F2}m");
+                Debug.Log($"{LOG_TAG} speed={_currentVelocity.magnitude:F1}m/s | boost={isDualBoostActive} | ext={extension:F2}m");
         }
 
         private void Decelerate()
@@ -112,15 +102,11 @@ namespace AerialNav.Navigation
             }
 
             _currentVelocity = Vector3.Lerp(_currentVelocity, Vector3.zero, decelerationRate * Time.deltaTime);
-
-            if (enableDebugLogging && _currentVelocity.sqrMagnitude > 0.1f)
-                Debug.Log($"{LOG_TAG} Decelerating: speed={_currentVelocity.magnitude:F1}m/s");
         }
 
         private void ApplyMovement()
         {
             if (_currentVelocity.sqrMagnitude < 0.001f) return;
-
             xrOrigin.position += _currentVelocity * Time.deltaTime;
         }
 
@@ -140,22 +126,22 @@ namespace AerialNav.Navigation
 
                     if (_currentVelocity.y < 0)
                         _currentVelocity.y = 0;
-
-                    if (enableDebugLogging)
-                        Debug.Log($"{LOG_TAG} Terrain floor enforced at y={minAllowedY:F1}");
                 }
             }
         }
 
-        private float GetMaxSpeedForAltitude()
+        /// <summary>
+        /// Boost is active when both fists are closed AND both are fully extended.
+        /// </summary>
+        private bool IsDualFistBoostActive(float rightExtensionNormalized)
         {
-            float relativeAltitude = xrOrigin.position.y - _spawnAltitude;
+            if (!fistDetector.IsLeftFist || !fistDetector.IsRightFist) return false;
+            if (rightExtensionNormalized < 1f) return false;
 
-            if (relativeAltitude < 5f)    return speedTier0;
-            if (relativeAltitude < 50f)   return speedTier1;
-            if (relativeAltitude < 500f)  return speedTier2;
-            if (relativeAltitude < 5000f) return speedTier3;
-            return speedTier4;
+            float leftExtension = Vector3.Distance(leftWristTransform.position, headTransform.position);
+            float leftExtensionNormalized = Mathf.InverseLerp(minExtension, maxExtension, leftExtension);
+
+            return leftExtensionNormalized >= 1f;
         }
 
         private void ValidateReferences()
@@ -164,21 +150,18 @@ namespace AerialNav.Navigation
             {
                 fistDetector = GetComponent<FistDetector>();
                 if (fistDetector == null)
-                    Debug.LogError($"{LOG_TAG} FistDetector not found! Attach to same GameObject or assign in Inspector.");
+                    Debug.LogError($"{LOG_TAG} FistDetector not found on this GameObject.");
             }
 
             if (xrOrigin == null)
             {
-                var xrOriginComponent = FindObjectOfType<Unity.XR.CoreUtils.XROrigin>();
-                if (xrOriginComponent != null)
+                var found = FindFirstObjectByType<Unity.XR.CoreUtils.XROrigin>();
+                if (found != null)
                 {
-                    xrOrigin = xrOriginComponent.transform;
+                    xrOrigin = found.transform;
                     Debug.Log($"{LOG_TAG} Auto-assigned XR Origin: {xrOrigin.name}");
                 }
-                else
-                {
-                    Debug.LogError($"{LOG_TAG} XR Origin not found!");
-                }
+                else Debug.LogError($"{LOG_TAG} XR Origin not found!");
             }
 
             if (headTransform == null)
@@ -189,19 +172,23 @@ namespace AerialNav.Navigation
                     headTransform = cam.transform;
                     Debug.Log($"{LOG_TAG} Auto-assigned Head Transform: {headTransform.name}");
                 }
-                else
-                {
-                    Debug.LogError($"{LOG_TAG} Main Camera not found for head tracking!");
-                }
+                else Debug.LogError($"{LOG_TAG} Main Camera not found!");
             }
 
             if (rightWristTransform == null)
-                Debug.LogError($"{LOG_TAG} Right Wrist Transform must be assigned! Drag R_Wrist from Right Hand Tracking.");
+                Debug.LogError($"{LOG_TAG} Right Wrist Transform must be assigned.");
+
+            if (leftWristTransform == null)
+                Debug.LogError($"{LOG_TAG} Left Wrist Transform must be assigned (required for dual-fist boost).");
         }
 
         private bool ReferencesValid()
         {
-            return fistDetector != null && xrOrigin != null && headTransform != null && rightWristTransform != null;
+            return fistDetector != null
+                && xrOrigin != null
+                && headTransform != null
+                && rightWristTransform != null
+                && leftWristTransform != null;
         }
     }
 }

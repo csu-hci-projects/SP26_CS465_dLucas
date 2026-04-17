@@ -9,7 +9,7 @@ EditorBuildSettings:
     path: Assets/Scenes/BaseScene.unity
     guid: 031aa64f3a41f4166ae310c6c622c218
   - enabled: 1
-    path: Assets/Scenes/ViltrumScene.unity
+    path: Assets/Scenes/Viltrum.unity
     guid: c32f1f0f0d435634cb8d6883f4a4080d
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 289c1b55c9541489481df5cc06664110, type: 3}
