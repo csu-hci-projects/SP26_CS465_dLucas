@@ -15,17 +15,17 @@ RenderSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 10
   m_Fog: 0
-  m_FogColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
-  m_FogMode: 3
+  m_FogColor: {r: 0.9292453, g: 0.931774, b: 1, a: 1}
+  m_FogMode: 1
   m_FogDensity: 0.01
   m_LinearFogStart: 0
-  m_LinearFogEnd: 300
+  m_LinearFogEnd: 8000
   m_AmbientSkyColor: {r: 0.212, g: 0.227, b: 0.259, a: 1}
   m_AmbientEquatorColor: {r: 0.114, g: 0.125, b: 0.133, a: 1}
   m_AmbientGroundColor: {r: 0.047, g: 0.043, b: 0.035, a: 1}
   m_AmbientIntensity: 1
   m_AmbientMode: 0
-  m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
+  m_SubtractiveShadowColor: {r: 0.54668033, g: 0.5655088, b: 0.6132076, a: 1}
   m_SkyboxMaterial: {fileID: 10304, guid: 0000000000000000f000000000000000, type: 0}
   m_HaloStrength: 0.5
   m_FlareStrength: 1
@@ -451,13 +451,11 @@ MonoBehaviour:
   xrOrigin: {fileID: 0}
   headTransform: {fileID: 0}
   rightWristTransform: {fileID: 600351561}
+  leftWristTransform: {fileID: 2035801834}
   minExtension: 0.25
   maxExtension: 0.7
-  speedTier0: 10
-  speedTier1: 50
-  speedTier2: 200
-  speedTier3: 1000
-  speedTier4: 5000
+  maxSpeed: 4000
+  dualFistBoostMultiplier: 2
   accelerationTau: 0.85
   decelerationRate: 4
   terrainFloorOffset: 2
@@ -554,24 +552,24 @@ MonoBehaviour:
   _detectTransformChanges: 1
   _localToGlobeFixedMatrix:
     c0:
-      x: 0.9659709840374558
-      y: -0.2586504552438307
-      z: 0.00000000005469741369903969
+      x: 0.9659709840375097
+      y: -0.25865045524363106
+      z: 0.000000000027370186846120692
       w: 0
     c1:
-      x: -0.19889232473998897
-      y: -0.7427948055600514
-      z: 0.6392947051267073
+      x: -0.1988923248211325
+      y: -0.7427948059312376
+      z: 0.6392947046702249
       w: 0
     c2:
-      x: 0.1653538664744984
-      y: 0.6175401354122922
-      z: 0.7689618196031547
+      x: 0.16535386637659547
+      y: 0.6175401349659437
+      z: 0.7689618199826974
       w: 0
     c3:
-      x: -1270620.544973666
-      y: -4745333.142860182
-      z: 4056783.669739181
+      x: -1270620.5449813572
+      y: -4745333.142888718
+      z: 4056783.669666401
       w: 1
   _localToGlobeFixedMatrixIsValid: 1
 --- !u!1 &859598871
@@ -584,6 +582,7 @@ GameObject:
   m_Component:
   - component: {fileID: 859598872}
   - component: {fileID: 859598873}
+  - component: {fileID: 859598874}
   m_Layer: 0
   m_Name: Google Photorealistic 3D Tiles
   m_TagString: Untagged
@@ -624,30 +623,44 @@ MonoBehaviour:
   _ionAssetID: 2275207
   _ionAccessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI2NTE3Y2RkMC1jYjRmLTRjZjUtOWFiYS1mZjA4OTM2YjJhNjAiLCJpZCI6NDA5MTgzLCJpYXQiOjE3NzQ2NTA5ODR9.09ZBoRvZWA3zOOaORXmgCh4zeuZBEj5VoFFYuf_pycQ
   _ionServer: {fileID: 11400000, guid: c6b4f238e311a4972952d04922d37df7, type: 2}
-  _maximumScreenSpaceError: 16
+  _maximumScreenSpaceError: 4
   _preloadAncestors: 1
-  _preloadSiblings: 1
+  _preloadSiblings: 0
   _forbidHoles: 1
-  _maximumSimultaneousTileLoads: 5
-  _maximumCachedBytes: 1073741824
-  _loadingDescendantLimit: 120
+  _maximumSimultaneousTileLoads: 48
+  _maximumCachedBytes: 17179869184
+  _loadingDescendantLimit: 48
   _enableFrustumCulling: 1
   _enableFogCulling: 1
   _enforceCulledScreenSpaceError: 1
-  _culledScreenSpaceError: 64
+  _culledScreenSpaceError: 512
   _opaqueMaterial: {fileID: 0}
-  _generateSmoothNormals: 0
+  _generateSmoothNormals: 1
   _ignoreKhrMaterialsUnlit: 0
   _pointCloudShading:
     _attenuation: 0
-    _geometricErrorScale: 1
+    _geometricErrorScale: 0
     _maximumAttenuation: 0
     _baseResolution: 0
   _suspendUpdate: 0
   _showTilesInHierarchy: 0
   _updateInEditor: 1
   _logSelectionStats: 0
-  _createPhysicsMeshes: 1
+  _createPhysicsMeshes: 0
+--- !u!114 &859598874
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 859598871}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c19e216367beeb6478925cb78d3f26b5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TileQualityController
+  activeSse: 8
+  culledSse: 4096
 --- !u!137 &1076596182 stripped
 SkinnedMeshRenderer:
   m_CorrespondingSourceObject: {fileID: 1317669517487522681, guid: 3f7511fbc40ae7a4b89c3298a3de199d, type: 3}
@@ -891,24 +904,24 @@ MonoBehaviour:
   _detectTransformChanges: 1
   _localToGlobeFixedMatrix:
     c0:
-      x: 0.9557663055241594
-      y: -0.2916144822192153
-      z: -0.03836356223617871
+      x: 0.9557663055241636
+      y: -0.29161448221919595
+      z: -0.03836356223624391
       w: 0
     c1:
-      x: -0.1976843854824884
-      y: -0.7334669395586872
-      z: 0.6503438569793851
+      x: -0.1976843854822174
+      y: -0.7334669395580946
+      z: 0.6503438569801361
       w: 0
     c2:
-      x: 0.21778809170143182
-      y: 0.6139928682799474
-      z: 0.7586706167614125
+      x: 0.2177880917016633
+      y: 0.6139928682806653
+      z: 0.7586706167607662
       w: 0
     c3:
-      x: -1262974.625037239
-      y: -4685961.993946807
-      z: 4127082.2755690413
+      x: -1262974.6250351896
+      y: -4685961.993939203
+      z: 4127082.275578239
       w: 1
   _localToGlobeFixedMatrixIsValid: 1
 --- !u!114 &1851949479
@@ -972,6 +985,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: CesiumForUnity::CesiumForUnity.CesiumOriginShift
   _distance: 10000
+--- !u!4 &2035801834 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 5876909491052011584, guid: b3ed8a0a703ebd34a9e44ed3d9f1fcf6, type: 3}
+  m_PrefabInstance: {fileID: 531567875}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
