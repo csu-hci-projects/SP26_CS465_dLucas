@@ -1,14 +1,14 @@
 # CS 465 Capstone: Flight Locomotion in World-Scale VR Environments
-**v1.0.8**
+**v1.0.4**
 
 ## Introduction
 
 **Course:** CS 465: Multimodal Interaction for 3D User Interfaces (Spring 2026)  
 **Instructor:** Dr. Francisco R. Ortega  
 **Student:** Devin Lucas  
-**Last Updated:** April 14, 2026
+**Last Updated:** April 20, 2026
 
-This repository contains the source code and documentation for a capstone research project investigating flight-based locomotion techniques within world-scale virtual reality environments. The project leverages Cesium for Unity to stream Google Photorealistic 3D Tiles, reconstructing Fort Collins, Colorado as a photogrammetric testbed for locomotion experimentation. A rudimentary "Viltrumite" flight locomotion method, inspired by the aerial mechanics depicted in the *Invincible* comic and television series, has been implemented as the initial locomotion paradigm. Future development will introduce additional locomotion techniques to facilitate comparative analysis of intuitiveness, user comfort, and navigational efficacy across varying flight modalities.
+This repository contains the source code and documentation for a capstone research project investigating flight-based locomotion techniques within world-scale virtual reality environments. The project leverages Cesium for Unity to stream Google Photorealistic 3D Tiles, reconstructing Fort Collins, Colorado as a photogrammetric testbed for locomotion experimentation. The initial locomotion paradigm — "Viltrumite" flight, inspired by the aerial mechanics depicted in the *Invincible* comic and television series — has been implemented and is under active refinement. Future development will introduce additional locomotion techniques to facilitate comparative analysis of intuitiveness, user comfort, and navigational efficacy across varying flight modalities.
 
 ## Table of Contents
 
@@ -24,10 +24,9 @@ This repository contains the source code and documentation for a capstone resear
 
 | Component | Specification |
 |-----------|---------------|
-| VR Headset | Meta Quest 2 (Quest 3 compatible with minimal configuration adjustments; ensure Android build target and OpenXR settings are preserved) |
+| VR Headset | Meta Quest 2 (powered on, Developer Mode enabled) |
 | Development Machine | Windows 10 (version 1903 or later) or Windows 11 |
-| Mobile Device | iOS or Android device with Meta Horizon app installed |
-| Link Cable | USB-C to USB-C (or USB-C to USB-A) cable for tethered development |
+| Link Cable | USB-C to USB-C or USB-C to USB-A, USB 3.0 recommended |
 
 ### Software
 
@@ -35,7 +34,7 @@ This repository contains the source code and documentation for a capstone resear
 |-----------|---------|
 | Unity Hub | Latest stable release |
 | Unity Editor | v6000.0.31f1 or higher |
-| Meta Horizon App | Latest stable release |
+| Meta Horizon Link (PC) | Latest stable release (installed and signed in) |
 | Git | Latest stable release |
 
 ## Installation Instructions
@@ -53,25 +52,47 @@ This repository contains the source code and documentation for a capstone resear
 6. Ensure Unity Editor v6000.0.31f1 (or higher) is installed; if not, install it via Unity Hub.
 7. Open the project in the Unity Editor.
 
-### Hardware Setup and Connection
+### Running Scenes via PC Link (Required)
 
-1. Power on the Meta Quest 2 and connect it to your Windows PC via the Link cable.
-2. Ensure the Quest 2 is connected to a WiFi network.
-3. Open the Meta Horizon mobile app and connect it to your Quest 2.
-4. Navigate to device settings within the Meta Horizon app and enable **Developer Mode**.
-5. Adjust the interpupillary distance (IPD) slider and head straps on the Quest 2 for optimal fit.
+> **Important:** Building and running these scenes directly on the Meta Quest 2 as a standalone Android application will result in severe performance degradation due to the computational demands of real-time 3D tile streaming. Standalone deployment is expressly disadvised. All scenes must be run via Meta Horizon PC Link, which renders on PC hardware while retaining Quest 2 I/O (head tracking, hand tracking, display).
 
-### Building and Deploying to Quest 2
+#### 1. Initiate Link
 
-1. In the Unity Editor, navigate to **File** → **Build Profiles**.
-2. Under **Platforms**, select **Android**.
-3. Add the desired scene to the build (options: `BaseScene`, `ViltrumScene`, or `MagicScene`).
-4. Set **Texture Compression** to **ASTC**.
-5. Set **Run Device** to your connected Quest 2.
-6. Enable the **Development Build** checkbox.
-7. Click **Switch Platform** and wait for asset reimporting to complete.
-8. Close Build Profiles, then navigate to **File** → **Build and Run**.
-9. Wait for the build process to complete, don the headset, and explore the environment.
+1. Open **Meta Horizon Link** on the PC.
+2. Connect the Quest 2 to the PC via the Link cable.
+3. Don the headset and accept the Link prompt, or navigate to **Settings > System > Quest Link** from inside the headset and toggle it on.
+4. Confirm you are in the grey grid Link home environment.
+
+#### 2. Meta Horizon Link Settings
+
+1. In the Meta Horizon Link PC app, navigate to **Settings > General**.
+2. Enable **Developer Runtime Features**.
+
+#### 3. Unity Build Profiles
+
+1. In the Unity Editor, navigate to **File > Build Profiles**.
+2. Select **Windows** from the platform list.
+3. Click **Switch Platform** and wait for asset reimporting to complete.
+4. Confirm **Windows** is marked as `Active`.
+
+#### 4. XR Plug-in Management
+
+1. Navigate to **Edit > Project Settings > XR Plug-in Management**.
+2. On the **Windows** tab (monitor icon), check **OpenXR**.
+3. Navigate to **XR Plug-in Management > OpenXR** (Windows tab) and configure the following:
+   - Set **Play Mode OpenXR Runtime** to `Oculus OpenXR`.
+   - Set **Render Mode** to `Single Pass Instanced`.
+4. Under **Enabled Interaction Profiles**, click **+** and add `Oculus Touch Controller Profile`.
+5. Under **OpenXR Feature Groups**, enable:
+   - Hand Tracking Subsystem
+   - Hand Interaction Poses
+6. Return to the main **XR Plug-in Management** page and confirm **Initialize XR on Startup** is checked.
+
+#### 5. Launch
+
+1. Close all Project Settings windows.
+2. Press **Play** in the Unity Editor.
+3. The scene will render in the headset, driven by PC hardware.
 
 ## Related Links
 
