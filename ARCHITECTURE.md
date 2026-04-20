@@ -1,9 +1,9 @@
 # Architecture Documentation
-**v1.0.3**
+**v1.0.4**
 
 ## Overview
 
-This document delineates the architectural composition of the CS 465 Capstone project, encompassing the directory structure, data flow paradigm, technology stack, and scene hierarchies. The architecture prioritizes modularity, enabling the Base Scene to serve as a foundational template from which locomotion-specific scenes inherit core functionality.
+This document delineates the architectural composition of the CS 465 Capstone project, encompassing the directory structure, data flow paradigm, technology stack, and scene hierarchies. The architecture prioritizes modularity, with `Viltrum.unity` serving as the primary locomotion implementation scene and the remaining scenes structured as parallel development targets.
 
 ## Directory Structure
 
@@ -24,9 +24,10 @@ SP26_CS465_dLucas/
 │   │   └── XR Hands/
 │   │       └── 1.7.3/                  # XR Hands package sample assets (v1.7.3)
 │   ├── Scenes/
-│   │   ├── BaseScene.unity             # Foundational scene with tiling and XR Origin
-│   │   ├── ViltrumScene.unity          # Flight locomotion implementation
-│   │   └── MagicScene.unity            # Placeholder for future locomotion methods
+│   │   ├── Viltrum.unity               # Viltrumite flight locomotion (primary implementation)
+│   │   ├── Controller.unity            # Controller locomotion (pending implementation)
+│   │   ├── FlapLikeABird.unity         # Bird-flight locomotion (pending implementation)
+│   │   └── PinchToMove.unity           # Pinch-to-move locomotion (pending implementation)
 │   ├── Scripts/
 │   │   ├── Gesture/
 │   │   │   └── FistDetector.cs         # Hand tracking fist gesture recognition
@@ -52,12 +53,12 @@ SP26_CS465_dLucas/
 │   │   └── com.unity.testtools.codecoverage/  # Code coverage tool settings
 │   ├── AudioManager.asset
 │   ├── DynamicsManager.asset
-│   ├── EditorBuildSettings.asset       # Scene build list (all 3 scenes registered)
+│   ├── EditorBuildSettings.asset       # Scene build list (all scenes registered)
 │   ├── EditorSettings.asset
 │   ├── GraphicsSettings.asset
 │   ├── InputManager.asset
 │   ├── MemorySettings.asset
-│   ├── ProjectSettings.asset           # Core Unity project settings (Android/Quest target)
+│   ├── ProjectSettings.asset           # Core Unity project settings
 │   ├── ProjectVersion.txt              # Unity version pin (6000.0.31f1)
 │   ├── QualitySettings.asset
 │   ├── ShaderGraphSettings.asset
@@ -79,10 +80,10 @@ SP26_CS465_dLucas/
 |-------|------------|---------|
 | Game Engine | Unity 6 (v6000.0.31f1) | Core development platform and scene management |
 | XR Framework | Unity XR Interaction Toolkit | Cross-platform XR input handling and interaction abstractions |
-| Hand Tracking | XR Hands Subsystem | Skeletal hand tracking and gesture recognition |
+| Hand Tracking | XR Hands Subsystem (v1.7.3) | Skeletal hand tracking and gesture recognition |
 | Geospatial Streaming | Cesium for Unity | 3D Tiles streaming, georeference management, and globe anchoring |
 | Tile Source | Google Photorealistic 3D Tiles | Photogrammetric reconstruction of real-world environments |
-| Target Platform | Android (Quest 2/Quest 3) | Standalone VR deployment |
+| Rendering Platform | PC via Meta Horizon Link | PC-rendered VR with Quest 2 I/O; see README for setup |
 
 ## Data Flow Architecture
 
@@ -99,7 +100,7 @@ SP26_CS465_dLucas/
                                      |  HTTPS Tile Requests
                                      v
 +-------------------------------------------------------------------------+
-|                       Unity Editor (Development)                        |
+|                    PC (Unity Editor via Meta Horizon Link)              |
 |                                                                         |
 |    +---------------------------------------------------------------+    |
 |    |                   Cesium3DTileset Components                  |    |
@@ -130,17 +131,17 @@ SP26_CS465_dLucas/
 |                                                                         |
 +-------------------------------------------------------------------------+
                                      |
-                                     |  Android Build (APK)
+                                     |  Meta Horizon Link (USB-C)
                                      v
 +-------------------------------------------------------------------------+
-|                            Meta Quest 2/3                               |
+|                            Meta Quest 2                                 |
 |                                                                         |
 |    +---------------------------------------------------------------+    |
-|    |                    Runtime Tile Streaming                     |    |
+|    |                    I/O (Display + Hand Tracking)              |    |
 |    |                                                               |    |
-|    |    * WiFi-based tile requests to Cesium Ion                  |    |
-|    |    * Dynamic LOD adjustment based on device performance      |    |
-|    |    * Hand tracking via XR Hands Subsystem                    |    |
+|    |    * Stereoscopic display of PC-rendered frames              |    |
+|    |    * Head pose and hand joint tracking via XR Hands          |    |
+|    |    * No local tile computation — all rendering on PC         |    |
 |    +---------------------------------------------------------------+    |
 |                                                                         |
 +-------------------------------------------------------------------------+
@@ -148,49 +149,18 @@ SP26_CS465_dLucas/
 
 ## Scene Composition
 
-### Base Scene
+All locomotion scenes share a common structural template: a `CesiumGeoreference` rooted at Fort Collins (40.5764°N, 105.0841°W, 1590m), a `Google Photorealistic 3D Tiles` tileset child, an `XR Origin (VR)` with hand tracking prefabs, and a `Directional Light`. Locomotion-specific `Scripts` are attached to a `Locomotion` GameObject under `XR Origin (VR)`. Environmental settings (tileset parameters, lighting, camera configuration) are held consistent across all scenes to ensure observed differences in user experience are attributable to the locomotion method rather than environmental variables.
 
-The Base Scene establishes the foundational architecture upon which all locomotion-specific scenes are constructed. It contains no locomotion scripts, serving purely as an environmental and XR infrastructure template.
+### Viltrum Scene
+
+The Viltrum Scene houses the primary locomotion implementation. It is the only scene currently containing finalized locomotion logic.
 
 **Scene Hierarchy:**
 
 ```
-BaseScene
+Viltrum
 ├── CesiumGeoreference
-│   ├── Google Photorealistic 3D Tiles (Cesium3DTileset)
-│   └── XR Origin (VR)
-│       └── Camera Offset
-│           ├── Main Camera
-│           ├── Right Hand Tracking (Prefab)
-│           └── Left Hand Tracking (Prefab)
-└── Directional Light
-```
-
-**Key Components:**
-
-| Component | Configuration | Purpose |
-|-----------|---------------|---------|
-| CesiumGeoreference | Origin: 39.7392°N, 104.99°W, 1600m | Establishes geographic coordinate system with Denver as reference |
-| CesiumCameraManager | useMainCamera: true | Directs tile loading toward the main camera frustum |
-| CesiumGlobeAnchor | adjustOrientationForGlobeWhenMoving: true | Maintains proper orientation relative to Earth's curvature |
-| CesiumOriginShift | distance: 10000m | Mitigates floating-point precision degradation at distance |
-| Cesium3DTileset | maximumScreenSpaceError: 1, maximumSimultaneousTileLoads: 80 | High-fidelity tile streaming for development |
-| Directional Light | Color: warm (1.0, 0.76, 0.33), Intensity: 1.0 | Simulates late-afternoon solar illumination |
-
-**Spawn Point Configuration:**
-
-The XR Origin is positioned at a local offset of approximately (−10.85, 1.46, −10.05) relative to the georeference origin, placing the user at street level within the Denver metropolitan area.
-
-### Viltrum Scene
-
-The Viltrum Scene extends the Base Scene architecture with the Viltrumite flight locomotion system. The geographic origin is shifted to Fort Collins (40.5764°N, 105.0841°W) to provide a distinct testbed from the Base Scene.
-
-**Scene Hierarchy Additions:**
-
-```
-ViltrumScene
-├── CesiumGeoreference
-│   ├── Google Photorealistic 3D Tiles (Cesium3DTileset)
+│   ├── Google Photorealistic 3D Tiles (Cesium3DTileset + TileQualityController)
 │   └── XR Origin (VR)
 │       ├── Camera Offset
 │       │   ├── Main Camera
@@ -206,24 +176,38 @@ ViltrumScene
 
 | Component | Responsibilities |
 |-----------|------------------|
-| FistDetector | Monitors XRHandSubsystem for fist gestures by measuring fingertip-to-wrist proximity. Exposes `IsRightFist` and `IsLeftFist` boolean states. Visual feedback is provided via hand mesh color modulation. |
-| ViltrumiteController | Consumes FistDetector state to drive locomotion. When a right-hand fist is detected, the user accelerates in the direction of the right wrist's forward vector. Arm extension (distance from wrist to head) modulates target velocity. Altitude-tiered speed limits prevent excessive velocity at low altitudes. Exponential smoothing (τ = 0.85s) provides cinematic acceleration curves. Terrain floor enforcement via raycasting prevents subterranean traversal. |
+| FistDetector | Monitors `XRHandSubsystem` for fist gestures by measuring fingertip-to-wrist proximity. Exposes `IsRightFist` and `IsLeftFist` boolean states. Visual feedback is provided via hand mesh color modulation. |
+| ViltrumiteController | Consumes `FistDetector` state to drive locomotion. When a right-hand fist is detected, the user accelerates in the direction of the right wrist's forward vector. Arm extension (wrist-to-head distance) modulates target velocity up to a configurable speed cap. Exponential smoothing (configurable τ) produces cinematic acceleration and deceleration curves. Terrain floor enforcement via downward raycasting prevents subterranean traversal. A dual-fist full-extension boost multiplies the speed cap when both fists are simultaneously and fully extended. |
 
-**Tileset Optimization for Locomotion:**
+**Known Issues and Active Investigations:**
 
-The Viltrum Scene employs adjusted tileset parameters to accommodate high-velocity traversal:
+*Hand Shaking.* Both hands render with a rapid oscillation that blurs the mesh during normal use. The root cause has not yet been isolated, but investigation is focused on two hypotheses: (1) an update loop conflict between Unity's game loop and the XR tracking pose update, where `TrackedPoseDriver` update timing may be mismatched against the `XRHandSubsystem`'s pose write cycle; and (2) a conflict between the XR Hands subsystem joint pose updates and the `SkinnedMeshRenderer`'s `LateUpdate` skinning pass. Concrete diagnostic steps include verifying `TrackedPoseDriver` `m_UpdateType` on hand prefabs (switching from `UpdateAndBeforeRender` to `BeforeRender`), confirming that `XRHandSkeletonDriver` or equivalent update type matches the `TrackedPoseDriver`, and auditing whether `FistDetector` pose reads in `Update` conflict with pose writes occurring in `LateUpdate`.
+
+*Arm Extension Calibration.* The extension range (`minExtension` / `maxExtension`) used to modulate speed is not yet calibrated to the developer's physical arm length. A/B testing is required to empirically determine the wrist-to-head distances that correspond to a relaxed arm position and a fully extended arm, and to update the serialized values accordingly.
+
+*Hover at Chest.* When the fist is held close to the chest (below `minExtension`), the controller's `Fly()` method returns early without actively zeroing velocity, resulting in a coast rather than a true hover. Active deceleration to zero when the gesture falls below `minExtension` is a pending implementation task.
+
+*Dual Fist Boost.* The dual-fist boost is not reliably firing during testing. The `IsDualFistBoostActive` method requires `rightExtensionNormalized >= 1f`, which may be excessively brittle given floating-point extension measurements — though this has not been confirmed as the definitive root cause and warrants further investigation.
+
+**Tileset Configuration:**
 
 | Parameter | Value | Rationale |
 |-----------|-------|-----------|
-| maximumScreenSpaceError | 16 | Reduced fidelity during rapid movement to prioritize frame rate |
-| maximumSimultaneousTileLoads | 5 | Throttled concurrent loads to prevent bandwidth saturation |
-| maximumCachedBytes | 1 GB | Constrained cache for Quest 2 memory limitations |
-| loadingDescendantLimit | 120 | Expanded descendant loading for smoother LOD transitions at speed |
-| culledScreenSpaceError | 64 | Aggressive culling for off-screen tiles |
+| maximumScreenSpaceError | 4 | High-fidelity tile selection, viable on PC hardware |
+| preloadAncestors | true | Ensures parent tiles are resident before children stream in |
+| preloadSiblings | false | Disabled to prevent asymmetric LOD artifacts |
+| maximumSimultaneousTileLoads | 48 | Elevated concurrent load count leveraging PC bandwidth |
+| maximumCachedBytes | 16 GB | Large cache budget for PC memory |
+| loadingDescendantLimit | 48 | Balanced descendant loading depth |
+| enforceCulledScreenSpaceError | true | Maintains LOD precision on culled tiles |
+| culledScreenSpaceError | 512 | Aggressive culling threshold for off-screen tiles |
+| createPhysicsMeshes | false | Disabled to reduce CPU overhead at high tile counts |
 
-### Magic Scene
+**TileQualityController** is attached alongside `Cesium3DTileset` and dynamically manages `maximumScreenSpaceError` and `culledScreenSpaceError` at runtime to approximate foveated loading behavior.
 
-The Magic Scene is currently a structural duplicate of the Base Scene, reserved for future locomotion method implementation. Its existence ensures the scene selection infrastructure is prepared for comparative locomotion studies.
+### Remaining Locomotion Scenes
+
+`Controller.unity`, `FlapLikeABird.unity`, and `PinchToMove.unity` share the same scene structure and environmental configuration as `Viltrum.unity`. Their `Locomotion` GameObjects currently contain placeholder script references carried over from the initial scene duplication. All locomotion logic in these scenes will be replaced during their respective implementation phases. Behavioral and mechanical specifications for each will be documented when implementation begins.
 
 ## Rendering and Lighting
 
