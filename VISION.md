@@ -1,9 +1,9 @@
 # Vision Document
-**v1.0.3**
+**v1.0.4**
 
 ## Overview
 
-This document articulates the developmental trajectory for the CS 465 Capstone project, outlining planned refinements to the existing Viltrumite locomotion system and the proposed additional locomotion methods for comparative analysis.
+This document articulates the developmental trajectory for the CS 465 Capstone project, outlining planned refinements to the Viltrumite locomotion system and the roadmap for implementing the remaining locomotion methods required for comparative analysis.
 
 ## Research Motivation
 
@@ -11,44 +11,54 @@ Existing locomotion techniques for virtual reality environments are adequate for
 
 ## Viltrumite Locomotion Refinements
 
-The Viltrumite locomotion method, named for the superhuman flight style depicted in the *Invincible* comic and television series, currently exists in a functional prototype state. The following refinements are planned:
+The Viltrumite locomotion method, named for the superhuman flight style depicted in the *Invincible* comic and television series, is functional and under active refinement. The following items constitute the current development backlog:
 
-### Speed Limits and Altitude Settings
+### Hand Rendering Stability
 
-The current implementation uses discrete altitude tiers to cap maximum velocity. Planned refinements include optimizing the relationship between altitude and speed limits to provide smoother transitions and more intuitive velocity envelopes at varying heights above terrain.
+Both hand meshes currently exhibit rapid oscillation that blurs the visual representation during normal use. Resolving this is a prerequisite for a polished user experience and for producing clean demonstration footage. The investigation and fix are tracked in ARCHITECTURE.md under *Known Issues and Active Investigations*.
 
-### Acceleration and Deceleration Mechanics
+### Arm Extension Calibration
 
-The acceleration and deceleration curves require tuning to achieve a balance between responsiveness and cinematic smoothness. Optimization efforts will focus on refining the exponential smoothing parameters and deceleration rates.
+The velocity modulation curve is parameterized by `minExtension` and `maxExtension` — wrist-to-head distances defining the dead zone and full-speed threshold respectively. These values must be empirically calibrated via A/B testing against the developer's physical arm dimensions before the locomotion feel can be considered representative.
+
+### Hover Behavior
+
+When the user holds a closed fist at chest level (below `minExtension`), the intent is to maintain a stationary hover. The current implementation returns early from the thrust calculation without actively zeroing velocity, causing the user to coast indefinitely. Active deceleration-to-zero when the fist is held close to the chest is a pending implementation task.
+
+### Dual Fist Speed Boost
+
+A speed multiplier activates when both fists are simultaneously and fully extended. This mechanic is implemented but not reliably triggering during testing. The root cause is under investigation.
+
+### Acceleration and Deceleration Tuning
+
+The exponential smoothing parameters governing acceleration and deceleration ramp require further tuning to achieve the target feel: weighty, cinematic build-up and a natural, momentum-preserving coast on release.
 
 ### Terrain Collision
 
-Implementing robust terrain collision detection to prevent the user from passing through buildings and terrain geometry. The current vertical raycast approach will be expanded to provide more comprehensive collision avoidance.
-
-### Resolution and Fidelity
-
-Increasing the visual resolution and fidelity of the environment during flight, potentially through dynamic LOD adjustments that respond to user velocity and maintain visual quality at rest.
+The current terrain floor enforcement uses a single vertical raycast. Expanding this to provide more comprehensive collision avoidance — particularly against building geometry at low altitude — is a longer-horizon refinement.
 
 ## Environmental Consistency
 
-Future locomotion scenes will mirror the Viltrumite environment in terms of graphics settings and configuration decisions. This ensures that observed differences in user experience are attributable to the locomotion method itself rather than environmental variables.
+All locomotion scenes are configured with identical environmental parameters (tileset settings, lighting, camera configuration) as documented in ARCHITECTURE.md. This ensures that observed differences in user experience across locomotion methods are attributable to the interaction design rather than environmental variables.
 
-## Proposed Locomotion Methods
+## Remaining Locomotion Methods
+
+Three additional locomotion methods are planned for implementation. Each will occupy its own scene (`Controller.unity`, `FlapLikeABird.unity`, `PinchToMove.unity`) and will be built against the same environmental template as the Viltrum scene. Detailed behavioral and mechanical specifications for each method will be documented when implementation begins.
 
 ### Pinch-to-Move
 
-A precision navigation technique wherein the user employs a pinch gesture to initiate and control movement through the environment.
+A precision navigation technique wherein the user employs a pinch gesture to initiate and control movement through the environment. Further details to follow.
 
 ### Bird Flight
 
-A biomimetic locomotion technique wherein the user flaps their arms to generate propulsion, mimicking bird wing mechanics.
+A biomimetic locomotion technique wherein the user flaps their arms to generate propulsion, mimicking the wing mechanics of bird flight. Further details to follow.
 
 ### Controller Locomotion
 
-A traditional thumbstick-based continuous locomotion method, included as a baseline for comparison against gesture-driven alternatives.
+A traditional thumbstick-based continuous locomotion method, included as a control condition for comparison against gesture-driven alternatives. Further details to follow.
 
 ## Performance Optimization
 
 ### Geographic Bounding
 
-Implementing a box boundary constraining the renderable environment to the Fort Collins area. This constraint will improve graphics performance by reducing the tile loading overhead and enabling higher visual fidelity within the bounded region.
+A spatial boundary constraining tile loading to the Fort Collins metropolitan area is planned. This will reduce tile request overhead and allow higher sustained fidelity within the target environment. Implementation is deferred until the locomotion systems are stabilized.
