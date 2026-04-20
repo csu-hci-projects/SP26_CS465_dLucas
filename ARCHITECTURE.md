@@ -69,8 +69,7 @@ SP26_CS465_dLucas/
 ├── SP26_CS465_dLucas.slnx              # Visual Studio solution file (Unity-generated)
 ├── README.md
 ├── ARCHITECTURE.md
-├── VISION.md
-└── UNLIMITEDPOWER.md
+└── VISION.md
 ```
 
 *Note: This manifest represents the principal files relevant to the capstone. The repository contains additional Unity-generated directories (Library, Logs, Temp) which are excluded from version control.*
@@ -84,7 +83,7 @@ SP26_CS465_dLucas/
 | Hand Tracking | XR Hands Subsystem (v1.7.3) | Skeletal hand tracking and gesture recognition |
 | Geospatial Streaming | Cesium for Unity | 3D Tiles streaming, georeference management, and globe anchoring |
 | Tile Source | Google Photorealistic 3D Tiles | Photogrammetric reconstruction of real-world environments |
-| Rendering Platform | PC via Meta Horizon Link | PC-rendered VR with Quest 2 I/O; see UNLIMITEDPOWER.md |
+| Rendering Platform | PC via Meta Horizon Link | PC-rendered VR with Quest 2 I/O; see README for setup |
 
 ## Data Flow Architecture
 
