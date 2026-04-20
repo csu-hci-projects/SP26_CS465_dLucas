@@ -432,7 +432,7 @@ MonoBehaviour:
   curlThreshold: 0.05
   minimumCurledFingers: 4
   enableDebugVisualization: 1
-  fistDetectedColor: {r: 0, g: 1, b: 0, a: 1}
+  fistDetectedColor: {r: 0.627451, g: 0.1254902, b: 0.9411765, a: 1}
   rightHandRenderer: {fileID: 1076596182}
   leftHandRenderer: {fileID: 700172019}
 --- !u!114 &700172021
@@ -456,6 +456,7 @@ MonoBehaviour:
   maxExtension: 0.7
   maxSpeed: 4000
   dualFistBoostMultiplier: 2
+  dualFistBoostThreshold: 0.92
   accelerationTau: 0.85
   decelerationRate: 4
   terrainFloorOffset: 2
