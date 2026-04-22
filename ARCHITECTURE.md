@@ -1,5 +1,5 @@
 # Architecture Documentation
-**v1.0.4**
+**v1.1.0**
 
 ## Overview
 
@@ -25,14 +25,16 @@ SP26_CS465_dLucas/
 │   │       └── 1.7.3/                  # XR Hands package sample assets (v1.7.3)
 │   ├── Scenes/
 │   │   ├── Viltrum.unity               # Viltrumite flight locomotion (primary implementation)
+│   │   ├── PinchToMove.unity           # Stroke-based pinch locomotion (in progress)
 │   │   ├── Controller.unity            # Controller locomotion (pending implementation)
-│   │   ├── FlapLikeABird.unity         # Bird-flight locomotion (pending implementation)
-│   │   └── PinchToMove.unity           # Pinch-to-move locomotion (pending implementation)
+│   │   └── FlapLikeABird.unity         # Bird-flight locomotion (pending implementation)
 │   ├── Scripts/
 │   │   ├── Gesture/
-│   │   │   └── FistDetector.cs         # Hand tracking fist gesture recognition
+│   │   │   ├── FistDetector.cs         # Hand tracking fist gesture recognition (Viltrum)
+│   │   │   └── PinchDetector.cs        # Hand tracking pinch gesture recognition (PinchToMove)
 │   │   └── Navigation/
-│   │       └── ViltrumiteController.cs # Viltrumite flight locomotion logic
+│   │       ├── ViltrumiteController.cs # Viltrumite flight locomotion logic
+│   │       └── PinchToMoveController.cs # Stroke-based pinch locomotion logic
 │   ├── TextMesh Pro/                   # TextMeshPro package assets (Unity-managed)
 │   ├── XR/
 │   │   ├── Loaders/
@@ -149,7 +151,9 @@ SP26_CS465_dLucas/
 
 ## Scene Composition
 
-All locomotion scenes share a common structural template: a `CesiumGeoreference` rooted at Fort Collins (40.5764°N, 105.0841°W, 1590m), a `Google Photorealistic 3D Tiles` tileset child, an `XR Origin (VR)` with hand tracking prefabs, and a `Directional Light`. Locomotion-specific `Scripts` are attached to a `Locomotion` GameObject under `XR Origin (VR)`. Environmental settings (tileset parameters, lighting, camera configuration) are held consistent across all scenes to ensure observed differences in user experience are attributable to the locomotion method rather than environmental variables.
+All locomotion scenes share a common structural template: a `CesiumGeoreference` rooted at Fort Collins (40.5764°N, 105.0841°W, 1590m), a `Google Photorealistic 3D Tiles` tileset child, an `XR Origin (VR)` with hand tracking prefabs, and a `Directional Light`. Locomotion-specific scripts are attached to a `Locomotion` GameObject under `XR Origin (VR)`. Environmental settings (tileset parameters, lighting, camera configuration) are held consistent across all scenes to ensure observed differences in user experience are attributable to the locomotion method rather than environmental variables.
+
+---
 
 ### Viltrum Scene
 
@@ -205,9 +209,80 @@ Viltrum
 
 **TileQualityController** is attached alongside `Cesium3DTileset` and dynamically manages `maximumScreenSpaceError` and `culledScreenSpaceError` at runtime to approximate foveated loading behavior.
 
+---
+
+### PinchToMove Scene
+
+The PinchToMove Scene implements stroke-based pinch locomotion. The mechanic is inspired by the scroll-wheel interaction paradigm: discrete, chainable input strokes that compound in effect with successive repetitions. Implementation is actively in progress.
+
+**Scene Hierarchy:**
+
+```
+PinchToMove
+├── CesiumGeoreference
+│   ├── Google Photorealistic 3D Tiles (Cesium3DTileset + TileQualityController)
+│   └── XR Origin (VR)
+│       ├── Camera Offset
+│       │   ├── Main Camera
+│       │   ├── Right Hand Tracking (Prefab)
+│       │   └── Left Hand Tracking (Prefab)
+│       └── Locomotion
+│           ├── PinchDetector (Script)
+│           └── PinchToMoveController (Script)
+└── Directional Light
+```
+
+**Locomotion System Architecture:**
+
+| Component | Responsibilities |
+|-----------|------------------|
+| PinchDetector | Monitors `MetaAimHand` (via `XRHandSubsystem`) for index-thumb pinch state and strength. Exposes `IsPinching` (bool), `PinchStrength` (float 0–1), `AimRay` (world-space aim direction at pinch onset), and `HandVelocity` (world-space wrist velocity at pinch onset). Pinch onset and release events are surfaced as edge-triggered callbacks for use by the controller. |
+| PinchToMoveController | Consumes `PinchDetector` events to execute stroke-based locomotion. Travel direction is determined by the hand's aim vector at the moment of pinch onset. Stroke power is computed from arc length (wrist displacement magnitude over the stroke duration) and stroke velocity (arc / duration). A chain multiplier accumulates across successive strokes completed within a configurable time window and decays when the window expires or the user pauses. Terrain floor enforcement mirrors the Viltrum implementation. |
+
+**Stroke Lifecycle:**
+
+A single locomotion unit — a *stroke* — progresses through three phases:
+
+1. **Primed.** The user makes a pinch. The aim vector at this moment is latched as the travel direction for the stroke. Wrist position at pinch onset is recorded as `strokeOrigin`. Because the hand may already be in motion at the moment of pinch onset, `HandVelocity` is sampled and used to bias the stroke arc computation, preventing false-zero arc reads from fast pinches.
+
+2. **Active.** While pinched, the user moves their arm (toward or away from the body). Displacement is tracked relative to `strokeOrigin`. No locomotion occurs during this phase; the stroke is accumulating power. If the user reverses direction mid-stroke (e.g., begins a come-hither and then extends their arm back out without releasing), the displacement magnitude continues to accumulate from the origin — the stroke does not reset or invert until release.
+
+3. **Committed.** On pinch release, stroke arc and velocity are computed, a velocity impulse is applied in the latched travel direction (or its inverse, if the net displacement was a push rather than a pull), and the chain multiplier is updated. The user must fully release the pinch before beginning the next stroke; holding a pinch and returning the hand to origin does not reset the stroke and would apply a near-zero (or inverted) impulse on release.
+
+**Stroke Power Inputs:**
+
+| Input | Description | Notes |
+|-------|-------------|-------|
+| Stroke arc | World-space displacement magnitude from `strokeOrigin` to wrist position at release | Larger arcs (elbow-driven) yield higher base impulse than small arcs (wrist-driven) |
+| Stroke velocity | Arc divided by stroke duration (pinch onset to release) | Fast strokes amplify impulse; slow strokes dampen it |
+| Chain multiplier | Scalar applied to stroke impulse; increments per committed stroke within the chain window | See configurable parameters below |
+
+**Stroke Direction:**
+
+The travel direction is the hand's aim forward vector at pinch onset. A come-hither (pulling toward the body) moves the user in the aimed direction; a push-away (extending the arm out) moves the user in the inverse direction. This is consistent and bidirectional — the come-hither motion is solely the power source; the aim vector at pinch onset is the sole steering input.
+
+**Chain Multiplier — Configurable Parameters:**
+
+| Parameter | Inspector Field | Description |
+|-----------|-----------------|-------------|
+| Chain window | `chainWindowSeconds` | Maximum elapsed time between stroke commitment and the next pinch onset for the chain to remain active. Exceeding this resets the multiplier to 1. |
+| Multiplier increment | `chainMultiplierIncrement` | Amount added to the multiplier per committed stroke within the chain window. |
+| Multiplier cap | `chainMultiplierCap` | Upper bound on the chain multiplier. |
+| Multiplier decay rate | `chainMultiplierDecayRate` | Rate at which the multiplier bleeds toward 1.0 during idle (no active chain). |
+
+**User Precision Considerations:**
+
+The system does not require the user to return their hand to a precise spatial origin between strokes. `strokeOrigin` is re-latched fresh on each pinch onset, so each stroke is self-referential. Chaining is gated exclusively on the elapsed time between strokes (the chain window), not on spatial proximity to any prior hand position.
+
+**Tileset Configuration:** Identical to Viltrum scene. See Viltrum Scene section above.
+
+---
+
 ### Remaining Locomotion Scenes
 
-`Controller.unity`, `FlapLikeABird.unity`, and `PinchToMove.unity` share the same scene structure and environmental configuration as `Viltrum.unity`. Their `Locomotion` GameObjects currently contain placeholder script references carried over from the initial scene duplication. All locomotion logic in these scenes will be replaced during their respective implementation phases. Behavioral and mechanical specifications for each will be documented when implementation begins.
+`Controller.unity` and `FlapLikeABird.unity` share the same scene structure and environmental configuration as `Viltrum.unity`. Their `Locomotion` GameObjects currently contain placeholder script references carried over from initial scene duplication. All locomotion logic in these scenes will be replaced during their respective implementation phases. Behavioral and mechanical specifications for each will be documented when implementation begins.
+
+---
 
 ## Rendering and Lighting
 
