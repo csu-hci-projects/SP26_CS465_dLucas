@@ -8,9 +8,12 @@ EditorBuildSettings:
   - enabled: 0
     path: Assets/Scenes/BaseScene.unity
     guid: 031aa64f3a41f4166ae310c6c622c218
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/Viltrum.unity
     guid: c32f1f0f0d435634cb8d6883f4a4080d
+  - enabled: 1
+    path: Assets/Scenes/PinchToMove.unity
+    guid: 1197e507cf9bad441885a3b710b88a67
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 289c1b55c9541489481df5cc06664110, type: 3}
     com.unity.xr.management.loader_settings: {fileID: 11400000, guid: 1fb18327f8be043809a7d495c22bca3c, type: 2}
