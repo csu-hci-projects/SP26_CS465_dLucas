@@ -19,27 +19,27 @@ namespace AerialNav.Navigation
 
         [Header("Extension Thresholds")]
         [Tooltip("Wrist-to-head distance for hover dead zone (m). Calibrate via A/B test.")]
-        [SerializeField] private float minExtension = 0.25f;
+        [SerializeField] private float minExtension = 1f;
 
         [Tooltip("Wrist-to-head distance for full speed (m). Calibrate via A/B test.")]
-        [SerializeField] private float maxExtension = 0.7f;
+        [SerializeField] private float maxExtension = 2.5f;
 
         [Header("Speed")]
         [Tooltip("Speed cap at full extension, no boost (m/s).")]
-        [SerializeField] private float maxSpeed = 4000f;
+        [SerializeField] private float maxSpeed = 3000f;
 
         [Tooltip("Multiplier when both fists are at full extension.")]
-        [SerializeField] private float dualFistBoostMultiplier = 2f;
+        [SerializeField] private float dualFistBoostMultiplier = 1.5f;
 
         [Tooltip("Normalized extension threshold for boost. < 1 adds tolerance for arm reach variance.")]
         [SerializeField] private float dualFistBoostThreshold = 0.92f;
 
         [Header("Cinematic Motion")]
         [Tooltip("Acceleration time constant (s). Higher = weightier ramp-up.")]
-        [SerializeField] private float accelerationTau = 1.6f;
+        [SerializeField] private float accelerationTau = 4f;
 
         [Tooltip("Deceleration lerp coefficient. Lower = longer coast.")]
-        [SerializeField] private float decelerationRate = 2.5f;
+        [SerializeField] private float decelerationRate = 3f;
 
         [Header("Terrain Safety")]
         [Tooltip("Minimum height above terrain (m).")]
@@ -103,7 +103,8 @@ namespace AerialNav.Navigation
             float extensionNormalized = Mathf.Clamp01(Mathf.InverseLerp(minExtension, maxExtension, extension));
             bool isDualBoostActive = IsDualFistBoostActive(extensionNormalized);
 
-            float speed = extensionNormalized * maxSpeed;
+            // Cubic curve: speed stays low until near full extension, then jumps to max
+            float speed = Mathf.Pow(extensionNormalized, 5f) * maxSpeed;
             if (isDualBoostActive)
                 speed *= dualFistBoostMultiplier;
 
