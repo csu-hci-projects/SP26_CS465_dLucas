@@ -312,11 +312,6 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 141466980049140221, guid: b3ed8a0a703ebd34a9e44ed3d9f1fcf6, type: 3}
   m_PrefabInstance: {fileID: 531567875}
   m_PrefabAsset: {fileID: 0}
---- !u!4 &600351561 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: 2468282021181825328, guid: 3f7511fbc40ae7a4b89c3298a3de199d, type: 3}
-  m_PrefabInstance: {fileID: 617514480}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &617514480
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -388,8 +383,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 700172018}
-  - component: {fileID: 700172020}
-  - component: {fileID: 700172021}
+  - component: {fileID: 700172019}
   m_Layer: 0
   m_Name: Locomotion
   m_TagString: Untagged
@@ -412,12 +406,7 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1851949481}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!137 &700172019 stripped
-SkinnedMeshRenderer:
-  m_CorrespondingSourceObject: {fileID: 1785337192100647894, guid: b3ed8a0a703ebd34a9e44ed3d9f1fcf6, type: 3}
-  m_PrefabInstance: {fileID: 531567875}
-  m_PrefabAsset: {fileID: 0}
---- !u!114 &700172020
+--- !u!114 &700172019
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -426,44 +415,13 @@ MonoBehaviour:
   m_GameObject: {fileID: 700172017}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 153b38d4bec504646a0e6b98ac2937ce, type: 3}
+  m_Script: {fileID: 11500000, guid: 8969e7597c5dcf64196102afa641ca2d, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::FistDetector
-  curlThreshold: 0.05
-  minimumCurledFingers: 4
-  enableDebugVisualization: 1
-  fistDetectedColor: {r: 0.627451, g: 0.1254902, b: 0.9411765, a: 1}
-  rightHandRenderer: {fileID: 1076596182}
-  leftHandRenderer: {fileID: 700172019}
---- !u!114 &700172021
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 700172017}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8ca3a000c4d819749aa653cc7a8514b4, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::AerialNav.Navigation.ViltrumiteController
-  fistDetector: {fileID: 0}
-  xrOrigin: {fileID: 0}
-  headTransform: {fileID: 0}
-  rightWristTransform: {fileID: 600351561}
-  leftWristTransform: {fileID: 2035801834}
-  minExtension: 0.25
-  maxExtension: 0.7
-  maxSpeed: 4000
-  dualFistBoostMultiplier: 2
-  dualFistBoostThreshold: 0.92
-  accelerationTau: 0.85
-  decelerationRate: 4
-  terrainFloorOffset: 2
-  terrainLayer:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  enableDebugLogging: 1
+  m_EditorClassIdentifier: Assembly-CSharp::Pinchdetector
+  pinchOnsetThreshold: 0.8
+  pinchReleaseThreshold: 0.5
+  velocitySampleFrames: 5
+  enableDebugLogging: 0
 --- !u!1 &723216082
 GameObject:
   m_ObjectHideFlags: 0
@@ -662,11 +620,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::TileQualityController
   activeSse: 8
   culledSse: 4096
---- !u!137 &1076596182 stripped
-SkinnedMeshRenderer:
-  m_CorrespondingSourceObject: {fileID: 1317669517487522681, guid: 3f7511fbc40ae7a4b89c3298a3de199d, type: 3}
-  m_PrefabInstance: {fileID: 617514480}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1201006817
 GameObject:
   m_ObjectHideFlags: 0
@@ -920,9 +873,9 @@ MonoBehaviour:
       z: 0.7586706167607662
       w: 0
     c3:
-      x: -1262974.625037239
-      y: -4685961.993946807
-      z: 4127082.2755690413
+      x: -1262974.6250351896
+      y: -4685961.993939203
+      z: 4127082.275578239
       w: 1
   _localToGlobeFixedMatrixIsValid: 1
 --- !u!114 &1851949479
@@ -986,11 +939,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: CesiumForUnity::CesiumForUnity.CesiumOriginShift
   _distance: 10000
---- !u!4 &2035801834 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: 5876909491052011584, guid: b3ed8a0a703ebd34a9e44ed3d9f1fcf6, type: 3}
-  m_PrefabInstance: {fileID: 531567875}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
