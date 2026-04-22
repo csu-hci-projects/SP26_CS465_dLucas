@@ -1,14 +1,14 @@
-# CS 465 Capstone: Flight Locomotion in World-Scale VR Environments
-**v1.0.4**
+# CS 465 Capstone: Gesture-Driven Locomotion in World-Scale VR Environments
+**v1.1.0**
 
 ## Introduction
 
-**Course:** CS 465: Multimodal Interaction for 3D User Interfaces (Spring 2026)  
-**Instructor:** Dr. Francisco R. Ortega  
-**Student:** Devin Lucas  
-**Last Updated:** April 20, 2026
+**Course:** CS 465: Multimodal Interaction for 3D User Interfaces (Spring 2026)
+**Instructor:** Dr. Francisco R. Ortega
+**Student:** Devin Lucas
+**Last Updated:** April 22, 2026
 
-This repository contains the source code and documentation for a capstone research project investigating flight-based locomotion techniques within world-scale virtual reality environments. The project leverages Cesium for Unity to stream Google Photorealistic 3D Tiles, reconstructing Fort Collins, Colorado as a photogrammetric testbed for locomotion experimentation. The initial locomotion paradigm — "Viltrumite" flight, inspired by the aerial mechanics depicted in the *Invincible* comic and television series — has been implemented and is under active refinement. Future development will introduce additional locomotion techniques to facilitate comparative analysis of intuitiveness, user comfort, and navigational efficacy across varying flight modalities.
+This repository contains the source code and documentation for a capstone research project investigating gesture-driven locomotion techniques within world-scale virtual reality environments. The project leverages Cesium for Unity to stream Google Photorealistic 3D Tiles, reconstructing Fort Collins, Colorado as a photogrammetric testbed for locomotion experimentation. Four distinct locomotion paradigms are under development: "Viltrumite" flight (inspired by the aerial mechanics depicted in the *Invincible* comic and television series), stroke-based pinch locomotion, biomimetic bird-flight flapping, and traditional thumbstick-based controller locomotion. Viltrumite flight is the primary implementation and is under active refinement. The remaining three methods are in varying stages of design and implementation. The completed set of locomotion methods will facilitate comparative analysis of intuitiveness, user comfort, and navigational efficacy across modalities.
 
 ## Table of Contents
 
