@@ -1,13 +1,15 @@
 # Vision Document
-**v1.0.4**
+**v1.1.0**
 
 ## Overview
 
-This document articulates the developmental trajectory for the CS 465 Capstone project, outlining planned refinements to the Viltrumite locomotion system and the roadmap for implementing the remaining locomotion methods required for comparative analysis.
+This document articulates the developmental trajectory for the CS 465 Capstone project, outlining planned refinements to the Viltrumite locomotion system, the design and implementation status of the PinchToMove system, and the roadmap for the remaining locomotion methods required for comparative analysis.
 
 ## Research Motivation
 
-Existing locomotion techniques for virtual reality environments are adequate for basic navigation, but they often lack the intuitiveness and satisfaction that users expect from embodied interaction. World-scale VR environments, characterized by photorealistic reconstructions of real-world geography spanning kilometers of traversable terrain, present an opportunity to explore whether gesture-driven flight locomotion can provide a more engaging and natural navigational experience compared to conventional methods.
+Existing locomotion techniques for virtual reality environments are adequate for basic navigation, but they often lack the intuitiveness and satisfaction that users expect from embodied interaction. World-scale VR environments, characterized by photorealistic reconstructions of real-world geography spanning kilometers of traversable terrain, present an opportunity to explore whether gesture-driven locomotion can provide a more engaging and natural navigational experience compared to conventional methods. This project investigates four locomotion paradigms — Viltrumite flight, stroke-based pinch locomotion, biomimetic bird-flight, and thumbstick-based controller locomotion — to assess their comparative intuitiveness, comfort, and navigational efficacy.
+
+---
 
 ## Viltrumite Locomotion Refinements
 
@@ -37,17 +39,54 @@ The exponential smoothing parameters governing acceleration and deceleration ram
 
 The current terrain floor enforcement uses a single vertical raycast. Expanding this to provide more comprehensive collision avoidance — particularly against building geometry at low altitude — is a longer-horizon refinement.
 
+---
+
+## PinchToMove Locomotion
+
+**Status: In Progress**
+
+PinchToMove is a stroke-based locomotion method drawing conceptual inspiration from the scroll-wheel interaction paradigm. Discrete, chainable pinch strokes propel the user through the environment, compounding in velocity with successive repetitions. The mechanic is designed to be bidirectional and self-explanatory — no instruction should be required for a user to infer the relationship between hand motion and locomotion direction.
+
+### Designed Mechanic
+
+**Stroke lifecycle.** A single locomotion unit is a *stroke*:
+
+1. The user makes a pinch with their dominant hand. The hand's aim forward vector at this moment is latched as the travel direction for the stroke. No movement begins at this point — the system is primed but not yet active.
+2. While pinched, the user sweeps their arm (a come-hither motion toward the body, or a push-away motion away from the body). Displacement is accumulated from the position at pinch onset.
+3. On pinch release, the stroke is committed: a velocity impulse is applied in the latched travel direction (come-hither) or its inverse (push-away). The user must fully release the pinch before initiating the next stroke.
+
+**Bidirectionality.** The come-hither motion (pulling the pinched hand toward the body) propels the user forward in the aimed direction. The reverse motion (extending the pinched hand away from the body) propels the user in the opposite direction. This maps intuitively onto the scroll-wheel analogy: the direction of the physical gesture mirrors the direction of traversal in the virtual environment.
+
+**Stroke power.** Impulse magnitude is a function of two inputs:
+- *Stroke arc* — the world-space displacement magnitude from the wrist position at pinch onset to the wrist position at release. An elbow-driven stroke (large arc) yields substantially more power than a wrist-flick (small arc).
+- *Stroke velocity* — arc divided by stroke duration. A fast stroke amplifies the impulse; a slow stroke dampens it.
+
+**Chain multiplier.** Successive strokes committed within a configurable time window (`chainWindowSeconds`) accumulate a multiplier applied to stroke impulse. This produces the scroll-wheel acceleration effect: slow, deliberate strokes navigate precisely; rapid, rhythmic strokes build into high-speed traversal. The multiplier is capped at `chainMultiplierCap` and decays toward 1.0 during idle. All chaining parameters (`chainWindowSeconds`, `chainMultiplierIncrement`, `chainMultiplierCap`, `chainMultiplierDecayRate`) are exposed as serialized fields for in-editor A/B tuning.
+
+**User precision tolerance.** The system does not require the user to return their hand to any specific spatial origin between strokes. Each pinch onset latches a fresh `strokeOrigin`, so chaining is gated purely on elapsed time between strokes — not on spatial hand positioning. Additionally, because the hand may already be in motion at pinch onset, the wrist velocity at onset is sampled and factored into the stroke arc computation to prevent near-zero arc reads from fast pinches.
+
+### Open Tuning Items
+
+The following parameters require empirical A/B testing during implementation and will be updated as calibration data is gathered:
+
+- `chainWindowSeconds` — the time budget between strokes that sustains a chain
+- `chainMultiplierIncrement` — per-stroke multiplier growth rate
+- `chainMultiplierCap` — maximum achievable multiplier
+- `chainMultiplierDecayRate` — idle bleed rate
+- Base impulse scaling relative to stroke arc and velocity
+- Deceleration tau after the final stroke in a chain
+
+---
+
 ## Environmental Consistency
 
 All locomotion scenes are configured with identical environmental parameters (tileset settings, lighting, camera configuration) as documented in ARCHITECTURE.md. This ensures that observed differences in user experience across locomotion methods are attributable to the interaction design rather than environmental variables.
 
+---
+
 ## Remaining Locomotion Methods
 
-Three additional locomotion methods are planned for implementation. Each will occupy its own scene (`Controller.unity`, `FlapLikeABird.unity`, `PinchToMove.unity`) and will be built against the same environmental template as the Viltrum scene. Detailed behavioral and mechanical specifications for each method will be documented when implementation begins.
-
-### Pinch-to-Move
-
-A precision navigation technique wherein the user employs a pinch gesture to initiate and control movement through the environment. Further details to follow.
+Two additional locomotion methods are planned for implementation following the completion of PinchToMove. Each will occupy its own scene and will be built against the same environmental template as all prior scenes. Detailed behavioral and mechanical specifications will be documented when implementation begins.
 
 ### Bird Flight
 
@@ -56,6 +95,8 @@ A biomimetic locomotion technique wherein the user flaps their arms to generate 
 ### Controller Locomotion
 
 A traditional thumbstick-based continuous locomotion method, included as a control condition for comparison against gesture-driven alternatives. Further details to follow.
+
+---
 
 ## Performance Optimization
 
