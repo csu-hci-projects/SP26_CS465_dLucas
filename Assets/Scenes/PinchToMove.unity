@@ -384,6 +384,7 @@ GameObject:
   m_Component:
   - component: {fileID: 700172018}
   - component: {fileID: 700172019}
+  - component: {fileID: 700172020}
   m_Layer: 0
   m_Name: Locomotion
   m_TagString: Untagged
@@ -421,6 +422,31 @@ MonoBehaviour:
   pinchOnsetThreshold: 0.8
   pinchReleaseThreshold: 0.5
   velocitySampleFrames: 5
+  enableDebugVisualization: 1
+  pinchDetectedColor: {r: 0.627, g: 0.125, b: 0.941, a: 1}
+  rightHandRenderer: {fileID: 0}
+  enableDebugLogging: 0
+--- !u!114 &700172020
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 700172017}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1cf49c9f5aafe0240b005549db67ce28, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::AerialNav.Navigation.PinchToMoveController
+  pinchDetector: {fileID: 0}
+  xrOrigin: {fileID: 0}
+  arcToSpeedScale: 500
+  maxSpeed: 4000
+  minimumArcThreshold: 0.05
+  terrainFloorOffset: 2
+  terrainLayer:
+    serializedVersion: 2
+    m_Bits: 4294967295
   enableDebugLogging: 0
 --- !u!1 &723216082
 GameObject:
