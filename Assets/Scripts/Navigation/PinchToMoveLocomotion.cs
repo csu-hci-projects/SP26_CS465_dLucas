@@ -8,6 +8,12 @@ namespace AerialNav.Navigation
     // Phase 1.5 — stroke end detection via displacement delta window; exponential decel to zero.
     // Phase 2   — chain multiplier: successive strokes within chainWindowSeconds accumulate a
     //             speed scalar, capped at chainMultiplierCap, decaying during idle.
+    // Phase 2.5 — residual-based Y suppression: PCA fit residual is used to determine how
+    //             arc-y the stroke is. High residual (curved stroke) dampens the Y component
+    //             of the travel direction, preventing unintentional vertical drift from
+    //             biomechanically arc-y strokes (e.g. bicep curl for forward locomotion).
+    //             Low residual (clean linear stroke) passes Y through unmodified, preserving
+    //             intentional vertical locomotion (e.g. overhead lat pulldown for ascent).
     //
     // Stroke end triggers:
     //   (a) Pinch released.
@@ -62,8 +68,8 @@ namespace AerialNav.Navigation
                  "for the chain to remain active. Exceeding this resets multiplier to 1.0.")]
         [SerializeField] private float chainWindowSeconds = 2.0f;
 
-        [Tooltip("Amount added to the chain multiplier per committed stroke within the window. " +
-                 "Increase for more aggressive acceleration per stroke; decrease for subtler buildup.")]
+        [Tooltip("Per-stroke multiplicative growth factor applied within the chain window. " +
+                 "Must be above 1.0. At 1.32, four strokes reaches ~3x.")]
         [SerializeField] private float chainMultiplierGrowthFactor = 1.32f;
 
         [Tooltip("Upper bound on the chain multiplier. " +
@@ -73,6 +79,18 @@ namespace AerialNav.Navigation
         [Tooltip("Rate at which the chain multiplier decays toward 1.0 per second during idle. " +
                  "Increase for a faster bleed; decrease to hold the multiplier longer between strokes.")]
         [SerializeField] private float chainMultiplierDecayRate = 0.5f;
+
+        [Header("Y Suppression")]
+        [Tooltip("PCA residual magnitude at which Y suppression is fully applied (0 Y contribution). " +
+                 "Strokes with residual at or above this value are considered maximally curved. " +
+                 "Decrease if forward strokes still drift vertically; increase if intentional " +
+                 "vertical strokes are being suppressed.")]
+        [SerializeField] private float maxResidualForFullSuppression = 0.04f;
+
+        [Tooltip("PCA residual magnitude below which no Y suppression is applied. " +
+                 "Strokes with residual at or below this are considered clean/linear. " +
+                 "Increase if minor arc-y forward strokes still drift vertically.")]
+        [SerializeField] private float minResidualForNoSuppression = 0.01f;
 
         [Header("Terrain Safety")]
         [SerializeField] private float terrainFloorOffset = 2f;
@@ -261,10 +279,10 @@ namespace AerialNav.Navigation
             if (arc < minimumArcThreshold) return;
             if (_strokeSamples.Count < minimumRegressionSamples) return;
 
-            if (!TryFitLine(_strokeSamples, out Vector3 bestFitDirection, out float strokeSign))
+            if (!TryFitLine(_strokeSamples, out Vector3 bestFitDirection, out float strokeSign, out float residual))
                 return;
 
-            _travelDirection = bestFitDirection;
+            _travelDirection = ApplyYSuppression(bestFitDirection, residual);
 
             float baseSpeed    = Mathf.Min(arc * arcToSpeedScale, maxSpeed);
             float chainedSpeed = Mathf.Min(baseSpeed * _chainMultiplier, maxSpeed * chainMultiplierCap);
@@ -272,9 +290,95 @@ namespace AerialNav.Navigation
             _currentVelocity   = _targetVelocity;
 
             if (enableDebugLogging)
-                Debug.Log($"{LOG_TAG} Stroke | arc={arc:F3}m | baseSpeed={baseSpeed:F1} | " +
-                          $"multiplier={_chainMultiplier:F2} | chainedSpeed={chainedSpeed:F1}m/s | " +
-                          $"dir={_travelDirection} | sign={strokeSign:F0}");
+                Debug.Log($"{LOG_TAG} Stroke | arc={arc:F3}m | residual={residual:F4} | " +
+                          $"baseSpeed={baseSpeed:F1} | multiplier={_chainMultiplier:F2} | " +
+                          $"chainedSpeed={chainedSpeed:F1}m/s | dir={_travelDirection} | sign={strokeSign:F0}");
+        }
+
+        // -----------------------------------------------------------------------
+        // Y Suppression
+        // -----------------------------------------------------------------------
+
+        // Dampens the Y component of the PCA axis proportionally to stroke curvature.
+        // High residual = arc-y stroke = suppress Y to prevent unintentional vertical drift.
+        // Low residual  = linear stroke = pass Y through unmodified for intentional vertical travel.
+        private Vector3 ApplyYSuppression(Vector3 direction, float residual)
+        {
+            // Suppression weight: 0 = no suppression, 1 = full suppression.
+            // Increases linearly from minResidualForNoSuppression to maxResidualForFullSuppression.
+            float suppressionWeight = Mathf.InverseLerp(
+                minResidualForNoSuppression,
+                maxResidualForFullSuppression,
+                residual);
+
+            // Blend Y toward zero based on suppression weight.
+            Vector3 suppressed = new Vector3(
+                direction.x,
+                Mathf.Lerp(direction.y, 0f, suppressionWeight),
+                direction.z);
+
+            // Renormalize — flattening Y changes magnitude.
+            if (suppressed.sqrMagnitude < 0.0001f)
+                return direction; // fallback: suppression collapsed the vector, use original
+
+            return suppressed.normalized;
+        }
+
+        // -----------------------------------------------------------------------
+        // Line of Best Fit (PCA)
+        // -----------------------------------------------------------------------
+
+        // Fits a line through accumulated samples via PCA on the centroid-centered cloud.
+        // Returns principal axis as direction, sign derived from net displacement vs axis,
+        // and mean residual (average perpendicular distance of samples from the fitted line).
+        private bool TryFitLine(List<Vector3> samples, out Vector3 direction, out float sign, out float residual)
+        {
+            direction = Vector3.forward;
+            sign      = 1f;
+            residual  = 0f;
+
+            Vector3 centroid = Vector3.zero;
+            foreach (var s in samples) centroid += s;
+            centroid /= samples.Count;
+
+            float xx = 0, xy = 0, xz = 0, yy = 0, yz = 0, zz = 0;
+            foreach (var s in samples)
+            {
+                Vector3 d = s - centroid;
+                xx += d.x * d.x; xy += d.x * d.y; xz += d.x * d.z;
+                yy += d.y * d.y; yz += d.y * d.z; zz += d.z * d.z;
+            }
+
+            Vector3 axis = (samples[samples.Count - 1] - samples[0]).normalized;
+            if (axis.sqrMagnitude < 0.0001f) return false;
+
+            for (int i = 0; i < 3; i++)
+            {
+                float nx = xx * axis.x + xy * axis.y + xz * axis.z;
+                float ny = xy * axis.x + yy * axis.y + yz * axis.z;
+                float nz = xz * axis.x + yz * axis.y + zz * axis.z;
+                axis = new Vector3(nx, ny, nz).normalized;
+                if (axis.sqrMagnitude < 0.0001f) return false;
+            }
+
+            direction = axis;
+
+            // Compute mean residual: average perpendicular distance from each sample to the fitted line.
+            // Residual = magnitude of the component of (sample - centroid) perpendicular to axis.
+            float totalResidual = 0f;
+            foreach (var s in samples)
+            {
+                Vector3 d          = s - centroid;
+                Vector3 projected  = Vector3.Dot(d, axis) * axis;
+                Vector3 perp       = d - projected;
+                totalResidual     += perp.magnitude;
+            }
+            residual = totalResidual / samples.Count;
+
+            Vector3 netDisplacement = pinchDetector.PinchMidpointPosition - _strokeOrigin;
+            sign = -Mathf.Sign(Vector3.Dot(netDisplacement, direction));
+
+            return true;
         }
 
         // -----------------------------------------------------------------------
@@ -335,47 +439,6 @@ namespace AerialNav.Navigation
             }
 
             return totalDisplacement < settlementDisplacementThreshold;
-        }
-
-        // -----------------------------------------------------------------------
-        // Line of Best Fit (PCA)
-        // -----------------------------------------------------------------------
-
-        private bool TryFitLine(List<Vector3> samples, out Vector3 direction, out float sign)
-        {
-            direction = Vector3.forward;
-            sign      = 1f;
-
-            Vector3 centroid = Vector3.zero;
-            foreach (var s in samples) centroid += s;
-            centroid /= samples.Count;
-
-            float xx = 0, xy = 0, xz = 0, yy = 0, yz = 0, zz = 0;
-            foreach (var s in samples)
-            {
-                Vector3 d = s - centroid;
-                xx += d.x * d.x; xy += d.x * d.y; xz += d.x * d.z;
-                yy += d.y * d.y; yz += d.y * d.z; zz += d.z * d.z;
-            }
-
-            Vector3 axis = (samples[samples.Count - 1] - samples[0]).normalized;
-            if (axis.sqrMagnitude < 0.0001f) return false;
-
-            for (int i = 0; i < 3; i++)
-            {
-                float nx = xx * axis.x + xy * axis.y + xz * axis.z;
-                float ny = xy * axis.x + yy * axis.y + yz * axis.z;
-                float nz = xz * axis.x + yz * axis.y + zz * axis.z;
-                axis = new Vector3(nx, ny, nz).normalized;
-                if (axis.sqrMagnitude < 0.0001f) return false;
-            }
-
-            direction = axis;
-
-            Vector3 netDisplacement = pinchDetector.PinchMidpointPosition - _strokeOrigin;
-            sign = -Mathf.Sign(Vector3.Dot(netDisplacement, direction));
-
-            return true;
         }
 
         // -----------------------------------------------------------------------
