@@ -4,20 +4,19 @@ using AerialNav.Gesture;
 
 namespace AerialNav.Navigation
 {
-    // Phase 1 — live stroke locomotion via line-of-best-fit through pinch midpoint samples.
+    // Phase 1   — live stroke locomotion via line-of-best-fit through pinch midpoint samples.
     // Phase 1.5 — stroke end detection via displacement delta window; exponential decel to zero.
+    // Phase 2   — chain multiplier: successive strokes within chainWindowSeconds accumulate a
+    //             speed scalar, capped at chainMultiplierCap, decaying during idle.
     //
     // Stroke end triggers:
     //   (a) Pinch released.
     //   (b) Hand settles while pinched — cumulative midpoint displacement over the last
-    //       _settlementFrameWindow frames falls below _settlementDisplacementThreshold.
+    //       settlementFrameWindow frames falls below settlementDisplacementThreshold.
     //
-    // In both cases, deceleration behavior is identical: velocity exponentially decays
-    // toward zero at rate governed by _decelerationTau. A new stroke begun while still
-    // pinched does NOT snap velocity to zero — it begins pulling from whatever residual
-    // velocity remains. Unpinch also does not snap velocity; decel continues as-was.
-    //
-    // Chain multiplier and acceleration ramp are deferred to Phase 2 and 3 respectively.
+    // Chain multiplier increments on stroke END (committed stroke earns the bonus).
+    // Multiplier resets to 1.0 if elapsed time since last stroke end exceeds chainWindowSeconds.
+    // Multiplier decays toward 1.0 continuously during idle at chainMultiplierDecayRate/sec.
 
     public class PinchToMoveController : MonoBehaviour
     {
@@ -30,11 +29,11 @@ namespace AerialNav.Navigation
         [SerializeField] private Transform xrOrigin;
         [SerializeField] private Transform headTransform;
 
-        [Header("Phase 1 — Stroke Arc")]
+        [Header("Stroke Arc")]
         [Tooltip("Arc-to-speed multiplier. Primary speed dial.")]
         [SerializeField] private float arcToSpeedScale = 600f;
 
-        [Tooltip("Speed cap regardless of arc (m/s).")]
+        [Tooltip("Speed cap before chain multiplier is applied (m/s).")]
         [SerializeField] private float maxSpeed = 4000f;
 
         [Tooltip("Minimum midpoint displacement from stroke origin to begin locomotion (m). Suppresses tremor.")]
@@ -43,7 +42,7 @@ namespace AerialNav.Navigation
         [Tooltip("Minimum samples before best-fit line is computed.")]
         [SerializeField] [Min(2)] private int minimumRegressionSamples = 3;
 
-        [Header("Phase 1.5 — Stroke End Detection")]
+        [Header("Stroke End Detection")]
         [Tooltip("Number of frames examined to determine if the hand has settled. " +
                  "Increase if strokes end prematurely on slow movement; " +
                  "decrease if settlement detection feels sluggish.")]
@@ -56,7 +55,24 @@ namespace AerialNav.Navigation
 
         [Tooltip("Exponential smoothing time constant for deceleration toward zero (seconds). " +
                  "Increase for a longer glide; decrease for a snappier stop.")]
-        [SerializeField] private float decelerationTau = 0.6f;
+        [SerializeField] private float decelerationTau = 1.0f;
+
+        [Header("Chain Multiplier")]
+        [Tooltip("Maximum elapsed time (seconds) between stroke end and next stroke onset " +
+                 "for the chain to remain active. Exceeding this resets multiplier to 1.0.")]
+        [SerializeField] private float chainWindowSeconds = 2.0f;
+
+        [Tooltip("Amount added to the chain multiplier per committed stroke within the window. " +
+                 "Increase for more aggressive acceleration per stroke; decrease for subtler buildup.")]
+        [SerializeField] private float chainMultiplierGrowthFactor = 1.32f;
+
+        [Tooltip("Upper bound on the chain multiplier. " +
+                 "Increase to allow higher top-end chained speed; decrease to cap it sooner.")]
+        [SerializeField] private float chainMultiplierCap = 10.0f;
+
+        [Tooltip("Rate at which the chain multiplier decays toward 1.0 per second during idle. " +
+                 "Increase for a faster bleed; decrease to hold the multiplier longer between strokes.")]
+        [SerializeField] private float chainMultiplierDecayRate = 0.5f;
 
         [Header("Terrain Safety")]
         [SerializeField] private float terrainFloorOffset = 2f;
@@ -72,9 +88,6 @@ namespace AerialNav.Navigation
         private List<Vector3> _strokeSamples = new List<Vector3>();
         private Vector3 _strokeOrigin;
         private Vector3 _travelDirection;
-
-        // True while the hand is actively driving a stroke (moving above threshold).
-        // Distinct from pinch state — hand can be pinched but not stroking (settled).
         private bool _strokeActive;
 
         // -----------------------------------------------------------------------
@@ -82,22 +95,26 @@ namespace AerialNav.Navigation
         // -----------------------------------------------------------------------
 
         private Vector3 _currentVelocity = Vector3.zero;
+        private Vector3 _targetVelocity  = Vector3.zero;
 
-        // Target velocity the deceleration model pulls toward.
-        // Set to the live stroke velocity while stroking; zero on stroke end.
-        private Vector3 _targetVelocity = Vector3.zero;
+        // -----------------------------------------------------------------------
+        // Private — Chain Multiplier
+        // -----------------------------------------------------------------------
+
+        private float _chainMultiplier   = 1.0f;
+        private float _lastStrokeEndTime = -999f;
+        private bool  _chainActive       = false;
 
         // -----------------------------------------------------------------------
         // Private — Settlement Detection
         // -----------------------------------------------------------------------
 
-        // Ring buffer of recent midpoint positions for settlement window computation.
         private Vector3[] _settlementBuffer;
-        private int _settlementIndex;
+        private int  _settlementIndex;
         private bool _settlementBufferFull;
 
         // -----------------------------------------------------------------------
-        // Private — Misc
+        // Const
         // -----------------------------------------------------------------------
 
         private const string LOG_TAG = "[PinchToMoveController]";
@@ -119,29 +136,22 @@ namespace AerialNav.Navigation
 
             if (pinchDetector.IsPinching)
             {
-                // Feed settlement buffer every frame while pinched.
                 RecordSettlementSample(pinchDetector.PinchMidpointPosition);
 
                 if (_strokeActive)
                 {
-                    // Check if hand has settled; if so, end the stroke.
                     if (IsHandSettled())
-                    {
                         EndStroke("hand settled");
-                    }
                     else
-                    {
                         UpdateStroke();
-                    }
                 }
                 else
                 {
-                    // Stroke not active — hand may be settling or preparing a new stroke.
-                    // Re-initiate if hand starts moving again above threshold.
                     TryReinitiateStroke();
                 }
             }
 
+            DecayChainMultiplier();
             ApplyVelocity();
             EnforceTerrainFloor();
         }
@@ -171,13 +181,12 @@ namespace AerialNav.Navigation
             BeginStroke();
 
             if (enableDebugLogging)
-                Debug.Log($"{LOG_TAG} Pinch started | origin={_strokeOrigin}");
+                Debug.Log($"{LOG_TAG} Pinch started | origin={_strokeOrigin} | " +
+                          $"multiplier={_chainMultiplier:F2}");
         }
 
         private void HandlePinchReleased()
         {
-            // Unpinch always ends the stroke if one is active.
-            // Deceleration continues from whatever _currentVelocity is — no snap to zero.
             if (_strokeActive)
                 EndStroke("pinch released");
 
@@ -192,24 +201,39 @@ namespace AerialNav.Navigation
         private void BeginStroke()
         {
             _strokeSamples.Clear();
-            _strokeOrigin  = pinchDetector.PinchMidpointPosition;
-            _strokeActive  = true;
-            // Do NOT zero _currentVelocity — residual from prior stroke carries through.
+            _strokeOrigin = pinchDetector.PinchMidpointPosition;
+            _strokeActive = true;
             ClearSettlementBuffer();
         }
 
         private void EndStroke(string reason)
         {
-            _strokeActive    = false;
-            _targetVelocity  = Vector3.zero;
-            // _currentVelocity is NOT zeroed — decel takes over from here.
+            _strokeActive   = false;
+            _targetVelocity = Vector3.zero;
+
+            float elapsed = Time.time - _lastStrokeEndTime;
+
+            if (elapsed <= chainWindowSeconds)
+            {
+                _chainMultiplier = Mathf.Min(
+                    _chainMultiplier * chainMultiplierGrowthFactor,
+                    chainMultiplierCap);
+                _chainActive = true;
+            }
+            else
+            {
+                _chainMultiplier = 1.0f;
+                _chainActive     = false;
+            }
+
+            _lastStrokeEndTime = Time.time;
 
             if (enableDebugLogging)
                 Debug.Log($"{LOG_TAG} Stroke ended ({reason}) | " +
+                          $"multiplier={_chainMultiplier:F2} | chain={_chainActive} | " +
                           $"coasting at {_currentVelocity.magnitude:F1}m/s");
         }
 
-        // Re-initiates a stroke mid-pinch if the hand begins moving again after settling.
         private void TryReinitiateStroke()
         {
             float displacement = Vector3.Distance(
@@ -217,8 +241,6 @@ namespace AerialNav.Navigation
 
             if (displacement >= minimumArcThreshold)
             {
-                // Hand is moving again — start a fresh stroke from current position.
-                // Origin re-latches here so the new stroke is self-referential.
                 BeginStroke();
 
                 if (enableDebugLogging)
@@ -244,16 +266,35 @@ namespace AerialNav.Navigation
 
             _travelDirection = bestFitDirection;
 
-            float speed     = Mathf.Min(arc * arcToSpeedScale, maxSpeed);
-            _targetVelocity = _travelDirection * (speed * strokeSign);
-
-            // During an active stroke, snap current velocity toward target immediately.
-            // Smooth acceleration ramp deferred to Phase 3.
-            _currentVelocity = _targetVelocity;
+            float baseSpeed    = Mathf.Min(arc * arcToSpeedScale, maxSpeed);
+            float chainedSpeed = Mathf.Min(baseSpeed * _chainMultiplier, maxSpeed * chainMultiplierCap);
+            _targetVelocity    = _travelDirection * (chainedSpeed * strokeSign);
+            _currentVelocity   = _targetVelocity;
 
             if (enableDebugLogging)
-                Debug.Log($"{LOG_TAG} Stroke | arc={arc:F3}m | speed={speed:F1}m/s | " +
+                Debug.Log($"{LOG_TAG} Stroke | arc={arc:F3}m | baseSpeed={baseSpeed:F1} | " +
+                          $"multiplier={_chainMultiplier:F2} | chainedSpeed={chainedSpeed:F1}m/s | " +
                           $"dir={_travelDirection} | sign={strokeSign:F0}");
+        }
+
+        // -----------------------------------------------------------------------
+        // Chain Multiplier Decay
+        // -----------------------------------------------------------------------
+
+        private void DecayChainMultiplier()
+        {
+            if (!_chainActive) return;
+            if (_chainMultiplier <= 1.0f) { _chainActive = false; return; }
+
+            _chainMultiplier = Mathf.Max(
+                1.0f,
+                _chainMultiplier - chainMultiplierDecayRate * Time.deltaTime);
+
+            if (_chainMultiplier <= 1.0f)
+            {
+                _chainMultiplier = 1.0f;
+                _chainActive     = false;
+            }
         }
 
         // -----------------------------------------------------------------------
@@ -280,8 +321,6 @@ namespace AerialNav.Navigation
             if (_settlementIndex == 0) _settlementBufferFull = true;
         }
 
-        // Returns true if cumulative displacement across the settlement window
-        // falls below settlementDisplacementThreshold.
         private bool IsHandSettled()
         {
             int count = _settlementBufferFull ? settlementFrameWindow : _settlementIndex;
@@ -347,12 +386,9 @@ namespace AerialNav.Navigation
         {
             if (!_strokeActive && _currentVelocity.sqrMagnitude > 0.001f)
             {
-                // Exponential decay toward zero when no stroke is driving velocity.
-                // decelerationTau: higher = longer glide, lower = snappier stop.
                 float factor = 1f - Mathf.Exp(-Time.deltaTime / decelerationTau);
                 _currentVelocity = Vector3.Lerp(_currentVelocity, Vector3.zero, factor);
 
-                // Snap to zero below a negligible threshold to prevent infinite approach.
                 if (_currentVelocity.sqrMagnitude < 0.01f)
                     _currentVelocity = Vector3.zero;
             }
