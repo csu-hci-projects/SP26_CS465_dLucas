@@ -1,5 +1,5 @@
 # Architecture Documentation
-**v1.1.0**
+**v1.1.1**
 
 ## Overview
 
@@ -27,14 +27,14 @@ SP26_CS465_dLucas/
 │   │   ├── Viltrum.unity               # Viltrumite flight locomotion (primary implementation)
 │   │   ├── PinchToMove.unity           # Stroke-based pinch locomotion (in progress)
 │   │   ├── Controller.unity            # Controller locomotion (pending implementation)
-│   │   └── FlapLikeABird.unity         # Bird-flight locomotion (pending implementation)
+│   │   └── FlapLikeABird.unity         # Bird-flight locomotion (dropped; fourth method pending selection)
 │   ├── Scripts/
 │   │   ├── Gesture/
 │   │   │   ├── FistDetector.cs         # Hand tracking fist gesture recognition (Viltrum)
 │   │   │   └── PinchDetector.cs        # Hand tracking pinch gesture recognition (PinchToMove)
 │   │   └── Navigation/
 │   │       ├── ViltrumiteController.cs # Viltrumite flight locomotion logic
-│   │       └── PinchToMoveController.cs # Stroke-based pinch locomotion logic
+│           └── PinchToMoveLocomotion.cs # Stroke-based pinch locomotion logic
 │   ├── TextMesh Pro/                   # TextMeshPro package assets (Unity-managed)
 │   ├── XR/
 │   │   ├── Loaders/
@@ -71,6 +71,7 @@ SP26_CS465_dLucas/
 ├── SP26_CS465_dLucas.slnx              # Visual Studio solution file (Unity-generated)
 ├── README.md
 ├── ARCHITECTURE.md
+├── EVOLUTION.md
 └── VISION.md
 ```
 
@@ -213,7 +214,7 @@ Viltrum
 
 ### PinchToMove Scene
 
-The PinchToMove Scene implements stroke-based pinch locomotion. The mechanic is inspired by the scroll-wheel interaction paradigm: discrete, chainable input strokes that compound in effect with successive repetitions. Implementation is actively in progress.
+The PinchToMove Scene implements stroke-based pinch locomotion. The mechanic is inspired by the scroll-wheel interaction paradigm: discrete, chainable input strokes that compound in effect with successive repetitions. The system is complete through Phase 2.5.
 
 **Scene Hierarchy:**
 
@@ -228,7 +229,7 @@ PinchToMove
 │       │   └── Left Hand Tracking (Prefab)
 │       └── Locomotion
 │           ├── PinchDetector (Script)
-│           └── PinchToMoveController (Script)
+│           └── PinchToMoveLocomotion (Script)
 └── Directional Light
 ```
 
@@ -236,43 +237,50 @@ PinchToMove
 
 | Component | Responsibilities |
 |-----------|------------------|
-| PinchDetector | Monitors `MetaAimHand` (via `XRHandSubsystem`) for index-thumb pinch state and strength. Exposes `IsPinching` (bool), `PinchStrength` (float 0–1), `AimRay` (world-space aim direction at pinch onset), and `HandVelocity` (world-space wrist velocity at pinch onset). Pinch onset and release events are surfaced as edge-triggered callbacks for use by the controller. |
-| PinchToMoveController | Consumes `PinchDetector` events to execute stroke-based locomotion. Travel direction is determined by the hand's aim vector at the moment of pinch onset. Stroke power is computed from arc length (wrist displacement magnitude over the stroke duration) and stroke velocity (arc / duration). A chain multiplier accumulates across successive strokes completed within a configurable time window and decays when the window expires or the user pauses. Terrain floor enforcement mirrors the Viltrum implementation. |
+| PinchDetector | Monitors `MetaAimHand` (via `XRHandSubsystem`) for middle-thumb pinch state and strength. Exposes `IsPinching` (bool), `PinchStrength` (float 0–1), and `PinchMidpointPosition` (world-space average of MiddleTip and ThumbTip joint positions). Onset and release events are surfaced as edge-triggered callbacks. Hysteresis via separate onset and release thresholds prevents boundary chatter. |
+| PinchToMoveLocomotion | Consumes `PinchDetector` events to execute stroke-based locomotion. Travel direction is determined live by PCA over accumulated pinch midpoint samples. Stroke arc drives base speed. A chain multiplier with multiplicative growth compounds across successive strokes within the chain window. Residual-based Y suppression dampens unintentional vertical drift from arc-y strokes. Exponential deceleration follows each stroke end. Terrain floor enforcement mirrors the Viltrum implementation. |
 
 **Stroke Lifecycle:**
 
-A single locomotion unit — a *stroke* — progresses through three phases:
+A single locomotion unit — a *stroke* — progresses through the following stages:
 
-1. **Primed.** The user makes a pinch. The aim vector at this moment is latched as the travel direction for the stroke. Wrist position at pinch onset is recorded as `strokeOrigin`. Because the hand may already be in motion at the moment of pinch onset, `HandVelocity` is sampled and used to bias the stroke arc computation, preventing false-zero arc reads from fast pinches.
-
-2. **Active.** While pinched, the user moves their arm (toward or away from the body). Displacement is tracked relative to `strokeOrigin`. No locomotion occurs during this phase; the stroke is accumulating power. If the user reverses direction mid-stroke (e.g., begins a come-hither and then extends their arm back out without releasing), the displacement magnitude continues to accumulate from the origin — the stroke does not reset or invert until release.
-
-3. **Committed.** On pinch release, stroke arc and velocity are computed, a velocity impulse is applied in the latched travel direction (or its inverse, if the net displacement was a push rather than a pull), and the chain multiplier is updated. The user must fully release the pinch before beginning the next stroke; holding a pinch and returning the hand to origin does not reset the stroke and would apply a near-zero (or inverted) impulse on release.
+1. **Onset.** The user pinches (middle finger to thumb). The pinch midpoint (average of MiddleTip and ThumbTip positions) is recorded as `strokeOrigin`.
+2. **Active.** While pinched, midpoint positions are accumulated each frame. A PCA line of best fit is continuously computed through all accumulated samples; its principal axis is the live travel direction, signed by net displacement from `strokeOrigin` (come-hither = forward, push-away = reverse). Locomotion begins as soon as minimum arc and sample thresholds are exceeded — the system does not wait for pinch release.
+3. **End.** The stroke ends on either of two triggers: (a) the hand settles — cumulative midpoint displacement across the last `settlementFrameWindow` frames falls below `settlementDisplacementThreshold`; or (b) the pinch is released. On stroke end, target velocity is set to zero and exponential deceleration begins.
+4. **Re-initiation.** If the hand settles while still pinched and then begins moving again, a new stroke initiates automatically from a fresh `strokeOrigin`. No re-pinch is required.
 
 **Stroke Power Inputs:**
 
 | Input | Description | Notes |
 |-------|-------------|-------|
-| Stroke arc | World-space displacement magnitude from `strokeOrigin` to wrist position at release | Larger arcs (elbow-driven) yield higher base impulse than small arcs (wrist-driven) |
-| Stroke velocity | Arc divided by stroke duration (pinch onset to release) | Fast strokes amplify impulse; slow strokes dampen it |
-| Chain multiplier | Scalar applied to stroke impulse; increments per committed stroke within the chain window | See configurable parameters below |
+| Stroke arc | World-space displacement magnitude from `strokeOrigin` to the current midpoint at peak PCA sample | Larger arcs yield higher base speed than small arcs |
+| Chain multiplier | Scalar applied to base speed; grows multiplicatively per committed stroke within the chain window | See configurable parameters below |
 
 **Stroke Direction:**
 
-The travel direction is the hand's aim forward vector at pinch onset. A come-hither (pulling toward the body) moves the user in the aimed direction; a push-away (extending the arm out) moves the user in the inverse direction. This is consistent and bidirectional — the come-hither motion is solely the power source; the aim vector at pinch onset is the sole steering input.
+The travel direction is the principal axis of the PCA line fitted through accumulated midpoint samples, signed by the net displacement from `strokeOrigin`. A come-hither motion (pulling toward the body) moves the user in the fitted stroke direction; a push-away (extending the arm out) moves the user in the inverse direction. The direction updates continuously while the stroke is active, tracking the overall trajectory of the hand through space.
 
 **Chain Multiplier — Configurable Parameters:**
 
 | Parameter | Inspector Field | Description |
 |-----------|-----------------|-------------|
-| Chain window | `chainWindowSeconds` | Maximum elapsed time between stroke commitment and the next pinch onset for the chain to remain active. Exceeding this resets the multiplier to 1. |
-| Multiplier increment | `chainMultiplierIncrement` | Amount added to the multiplier per committed stroke within the chain window. |
+| Chain window | `chainWindowSeconds` | Maximum elapsed time between stroke end and the next pinch onset for the chain to remain active. Exceeding this resets the multiplier to 1.0. |
+| Multiplier growth | `chainMultiplierGrowthFactor` | Multiplicative factor applied per committed stroke within the chain window. Default 1.32; produces ~3× speed by stroke 4. |
 | Multiplier cap | `chainMultiplierCap` | Upper bound on the chain multiplier. |
-| Multiplier decay rate | `chainMultiplierDecayRate` | Rate at which the multiplier bleeds toward 1.0 during idle (no active chain). |
+| Multiplier decay rate | `chainMultiplierDecayRate` | Rate at which the multiplier decays toward 1.0 per second during idle. |
+
+**Y Suppression:**
+
+The PCA residual — mean perpendicular distance of samples from the fitted line — serves as a curvature proxy to suppress unintentional vertical drift from arc-y strokes. High-residual strokes have their Y travel component dampened proportionally; low-residual strokes pass Y through unmodified, preserving intentional vertical locomotion.
+
+| Parameter | Inspector Field | Description |
+|-----------|-----------------|-------------|
+| Full suppression threshold | `maxResidualForFullSuppression` | Residual at which Y is fully zeroed (default 0.04m). |
+| No suppression threshold | `minResidualForNoSuppression` | Residual below which Y is untouched (default 0.01m). |
 
 **User Precision Considerations:**
 
-The system does not require the user to return their hand to a precise spatial origin between strokes. `strokeOrigin` is re-latched fresh on each pinch onset, so each stroke is self-referential. Chaining is gated exclusively on the elapsed time between strokes (the chain window), not on spatial proximity to any prior hand position.
+`strokeOrigin` is re-latched fresh on each pinch onset, so each stroke is self-referential. Chaining is gated exclusively on the elapsed time between strokes, not on spatial proximity to any prior hand position.
 
 **Tileset Configuration:** Identical to Viltrum scene. See Viltrum Scene section above.
 
@@ -280,7 +288,7 @@ The system does not require the user to return their hand to a precise spatial o
 
 ### Remaining Locomotion Scenes
 
-`Controller.unity` and `FlapLikeABird.unity` share the same scene structure and environmental configuration as `Viltrum.unity`. Their `Locomotion` GameObjects currently contain placeholder script references carried over from initial scene duplication. All locomotion logic in these scenes will be replaced during their respective implementation phases. Behavioral and mechanical specifications for each will be documented when implementation begins.
+`Controller.unity` and `FlapLikeABird.unity` carry over the same scene structure and environmental configuration as `Viltrum.unity`. The bird-flight locomotion concept behind `FlapLikeABird.unity` has been dropped; the scene will be repurposed or replaced when the fourth locomotion method is selected. A final decision on the fourth method is pending. `Controller.unity` remains a candidate. Behavioral and mechanical specifications will be documented when implementation begins.
 
 ---
 

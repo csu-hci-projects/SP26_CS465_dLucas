@@ -1,5 +1,5 @@
 # PinchToMove: Evolution Log
-**v1.0.0 — April 22, 2026**
+**v1.1.1 — April 27, 2026**
 
 ## Overview
 
@@ -55,7 +55,7 @@ The second approach replaced the aim ray with the vector from head position to w
 
 This felt more natural in testing, but introduced a new problem: the direction was still latched at a single moment (pinch onset), meaning the user was locked to an invisible directional line for the entire stroke. Turning while pinching had no effect on travel direction, which felt rigid and unintuitive.
 
-### Third Iteration: Live Best-Fit Line (Current)
+### Third Iteration: Live Best-Fit Line (PCA)
 
 The insight that resolved both prior approaches: **the stroke vector itself is the travel direction**. Rather than latching a direction at onset and using the stroke for power only, the stroke path through space defines both direction and magnitude simultaneously.
 
@@ -66,6 +66,59 @@ Locomotion begins as soon as a minimum displacement threshold is exceeded and a 
 **Why PCA and not just first-to-last sample direction?** A human arm sweep traces a circular arc through space, not a straight line. The first-to-last vector would be a chord of that arc — reasonable, but sensitive to where exactly the user starts and ends. PCA fits a line through the entire cloud of samples, which is more stable and more representative of the user's actual intent. Three iterations of power iteration on the covariance matrix of the sample cloud is computationally cheap and sufficient for the low sample counts a hand stroke generates.
 
 **Sign determination.** The PCA axis is unsigned — it points in one direction or its opposite with equal mathematical validity. To determine which end is "forward," the net displacement vector from stroke origin to current midpoint is dotted against the fitted axis. A come-hither motion produces a displacement that opposes the initial reach direction, so the sign is negated to map come-hither to forward travel and push-away to reverse travel.
+
+---
+
+### Phase 1.5 — Stroke End Detection and Deceleration
+
+A persistent friction in Phase 1: locomotion continued for as long as the pinch was held, regardless of whether the hand had stopped moving. A user who completes a stroke but forgets to release the pinch coasts indefinitely. The fix required a principled definition of "stroke end."
+
+**Two triggers defined:**
+- **Hand settles while pinched.** A ring buffer accumulates pinch midpoint positions over the last `settlementFrameWindow` frames. If cumulative displacement across the buffer falls below `settlementDisplacementThreshold`, the hand is considered settled and the stroke ends.
+- **Pinch released.** Trivially ends the stroke.
+
+Both triggers produce identical downstream behavior: target velocity is set to zero, and exponential deceleration takes over from whatever residual velocity exists. Unpinch does not snap velocity to zero — the user glides and decelerates into stillness.
+
+**Mid-pinch stroke re-initiation.** If the hand settles but the user remains pinched and begins moving again, a new stroke initiates automatically from a fresh `strokeOrigin`. This supports a come-hither followed immediately by a corrective stroke without releasing the pinch — the system re-arms without requiring a re-pinch.
+
+**Key variables:**
+- `settlementFrameWindow` = 5 — frames examined for settlement
+- `settlementDisplacementThreshold` = 0.005m — cumulative displacement floor
+- `decelerationTau` = 0.5s — exponential decay time constant
+
+---
+
+### Phase 2.0 — Chain Multiplier
+
+The scroll-wheel acceleration mechanic. On each stroke end, elapsed time since the previous stroke end is checked against `chainWindowSeconds`. If within the window, the multiplier grows; if outside, it resets to 1.0.
+
+The multiplier is **multiplicative rather than additive**: each successive stroke within the chain window multiplies the current multiplier by `chainMultiplierGrowthFactor`. This produces exponential growth — each successive stroke in a chain is meaningfully faster than the previous one, not just incrementally faster.
+
+**Target calibration:** 3× speed by stroke 4. Derived growth factor: $3.0^{1/4} \approx 1.32$. The multiplier decays continuously toward 1.0 during idle at `chainMultiplierDecayRate` per second.
+
+Speed was also tuned this phase: `arcToSpeedScale` raised from 500 to 600 for a slight baseline speed increase across all strokes.
+
+**Key variables:**
+- `chainWindowSeconds` = 2.0s — time budget between strokes to sustain the chain
+- `chainMultiplierGrowthFactor` = 1.32 — per-stroke multiplicative growth
+- `chainMultiplierCap` = 10.0 — multiplier ceiling
+- `chainMultiplierDecayRate` = 0.5/sec — idle decay toward 1.0
+
+---
+
+### Phase 2.5 — Residual-Based Y Suppression
+
+Biomechanically arc-y strokes — particularly the forward bicep-curl come-hither — introduce unintentional vertical drift because the PCA axis is skewed by the non-primary Y component of the arc. The PCA residual (mean perpendicular distance of each sample from the fitted line) serves as a curvature proxy: high residual indicates a curved stroke; low residual indicates a clean linear stroke.
+
+Y suppression blends the Y component of the travel direction toward zero via `Mathf.InverseLerp` between two residual thresholds, then renormalizes the direction vector. Clean linear strokes — such as an overhead lat pulldown for intentional vertical ascent — pass through unmodified because their low residual falls below the suppression threshold.
+
+Residual is logged alongside each stroke when `enableDebugLogging` is on, enabling empirical threshold calibration from actual stroke data.
+
+**Key variables:**
+- `maxResidualForFullSuppression` = 0.04m — residual at which Y is fully zeroed
+- `minResidualForNoSuppression` = 0.01m — residual below which Y is untouched
+
+Both thresholds require empirical calibration against actual stroke residual values from the test population before they can be considered final.
 
 ---
 
@@ -81,35 +134,31 @@ Locomotion begins as soon as a minimum displacement threshold is exceeded and a 
 
 ## Current State
 
-Phase 1 is complete and functional. The user can locomote in three-dimensional space using middle-thumb pinch strokes. Travel direction is determined live by PCA over pinch midpoint samples. Stroke arc length drives speed linearly via `arcToSpeedScale`. The system is bidirectional. Chaining is not yet implemented.
+Phases 1.0 through 2.5 are complete and functional. The full stroke lifecycle is implemented: middle-thumb pinch onset detection, live PCA direction fitting over accumulated midpoint samples, stroke end detection via a settlement displacement window, exponential deceleration to glide, chain multiplier with multiplicative per-stroke growth, and residual-based Y suppression to prevent unintentional vertical drift from arc-y strokes.
 
-**Tunable parameters exposed for A/B testing:**
-- `arcToSpeedScale` — primary speed dial
-- `maxSpeed` — hard cap
-- `minimumArcThreshold` — tremor filter
-- `minimumRegressionSamples` — regression stability floor
+**Implemented parameters:**
+- `arcToSpeedScale` = 600 — primary speed dial
+- `maxSpeed` = 4000 — hard cap
+- `minimumArcThreshold` = 0.02m — tremor filter
+- `minimumRegressionSamples` = 3 — regression stability floor
+- `settlementFrameWindow` = 5 — settlement detection window
+- `settlementDisplacementThreshold` = 0.005m — settlement threshold
+- `decelerationTau` = 0.5s — deceleration time constant
+- `chainWindowSeconds` = 2.0s — chain sustain window
+- `chainMultiplierGrowthFactor` = 1.32 — per-stroke multiplicative growth
+- `chainMultiplierCap` = 10.0 — multiplier ceiling
+- `chainMultiplierDecayRate` = 0.5/sec — idle multiplier decay
+- `maxResidualForFullSuppression` = 0.04m — Y suppression upper threshold
+- `minResidualForNoSuppression` = 0.01m — Y suppression lower threshold
 
 ---
 
 ## Next Steps
 
-### Phase 2 — Stroke Velocity
+### Acceleration Ramp-Up (Deferred)
 
-Factor stroke duration into the speed calculation. Arc divided by stroke duration produces a velocity scalar — a fast stroke should feel punchier than a slow one of equal arc length. The pre-pinch midpoint velocity already sampled at onset will be integrated here to correct for hand motion that predates the pinch.
+Smooth onset into a stroke rather than snapping immediately to target velocity. Deferred pending further deceleration validation in testing. Deceleration is stable and functional; this is the natural next implementation step.
 
-### Phase 3 — Chain Multiplier
+### Y Suppression Threshold Calibration
 
-Implement the scroll-wheel acceleration mechanic. Successive strokes committed within a configurable time window (`chainWindowSeconds`) accumulate a multiplier applied to stroke impulse. The multiplier is capped and decays during idle. All chaining parameters are serialized for in-editor tuning:
-
-- `chainWindowSeconds` — time budget between strokes to sustain a chain
-- `chainMultiplierIncrement` — per-stroke multiplier growth
-- `chainMultiplierCap` — maximum multiplier
-- `chainMultiplierDecayRate` — idle bleed rate
-
-### Stroke End Detection (Pending Design)
-
-A currently open design question: locomotion continues as long as the pinch is held, even after the stroke arc has naturally ended. This is unintuitive — the user expects locomotion to stop when their hand stops, not when they release the pinch. The proposed solution is a **displacement delta window**: if total midpoint displacement over the last N frames falls below a threshold, the stroke is considered complete and velocity is frozen. This is more tremor-resistant than a per-frame velocity threshold and avoids introducing deceleration logic prematurely. The question of whether a new hand movement while still pinched re-initiates the stroke, or whether release-and-re-pinch is required, remains open pending testing.
-
-### Deceleration
-
-Exponential velocity decay after stroke completion, consistent with the Viltrumite implementation. Deferred until stroke end detection is resolved, since deceleration behavior is meaningless without a reliable stroke-end signal.
+`maxResidualForFullSuppression` and `minResidualForNoSuppression` require empirical calibration against residual values from actual strokes. Enable `enableDebugLogging` and observe residual output across stroke types before finalizing defaults.

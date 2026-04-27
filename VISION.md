@@ -1,5 +1,5 @@
 # Vision Document
-**v1.1.0**
+**v1.1.1**
 
 ## Overview
 
@@ -51,30 +51,29 @@ PinchToMove is a stroke-based locomotion method drawing conceptual inspiration f
 
 **Stroke lifecycle.** A single locomotion unit is a *stroke*:
 
-1. The user makes a pinch with their dominant hand. The hand's aim forward vector at this moment is latched as the travel direction for the stroke. No movement begins at this point — the system is primed but not yet active.
-2. While pinched, the user sweeps their arm (a come-hither motion toward the body, or a push-away motion away from the body). Displacement is accumulated from the position at pinch onset.
-3. On pinch release, the stroke is committed: a velocity impulse is applied in the latched travel direction (come-hither) or its inverse (push-away). The user must fully release the pinch before initiating the next stroke.
+1. The user pinches with their dominant hand (middle finger to thumb). The pinch midpoint — the average of MiddleTip and ThumbTip joint positions — is recorded as the stroke origin.
+2. While pinched, the user sweeps their arm in a come-hither (toward the body) or push-away (away from the body) motion. Each frame, the midpoint position is sampled and added to the stroke sample set.
+3. A line of best fit (PCA) is continuously computed through all accumulated samples. The principal axis is the live travel direction; sign is derived from the net displacement from stroke origin — come-hither maps to forward, push-away maps to reverse.
+4. Locomotion begins as soon as minimum displacement and minimum sample count thresholds are exceeded. The system does not wait for pinch release.
+5. The stroke ends when the hand settles (cumulative midpoint displacement across the last `settlementFrameWindow` frames falls below `settlementDisplacementThreshold`) or when the pinch is released. On stroke end, target velocity is set to zero and exponential deceleration begins — the user glides into stillness.
+6. If the hand settles while still pinched and then begins moving again, a new stroke initiates automatically from a fresh origin. No re-pinch is required.
 
-**Bidirectionality.** The come-hither motion (pulling the pinched hand toward the body) propels the user forward in the aimed direction. The reverse motion (extending the pinched hand away from the body) propels the user in the opposite direction. This maps intuitively onto the scroll-wheel analogy: the direction of the physical gesture mirrors the direction of traversal in the virtual environment.
+**Bidirectionality.** The come-hither motion propels the user forward along the stroke direction; the push-away motion propels the user in the opposite direction. The physical direction of the arm sweep directly mirrors the direction of locomotion.
 
-**Stroke power.** Impulse magnitude is a function of two inputs:
-- *Stroke arc* — the world-space displacement magnitude from the wrist position at pinch onset to the wrist position at release. An elbow-driven stroke (large arc) yields substantially more power than a wrist-flick (small arc).
-- *Stroke velocity* — arc divided by stroke duration. A fast stroke amplifies the impulse; a slow stroke dampens it.
+**Stroke power.** Speed is proportional to stroke arc — the world-space displacement magnitude from stroke origin to the current midpoint at peak PCA sample. An elbow-driven stroke yields more power than a wrist flick.
 
-**Chain multiplier.** Successive strokes committed within a configurable time window (`chainWindowSeconds`) accumulate a multiplier applied to stroke impulse. This produces the scroll-wheel acceleration effect: slow, deliberate strokes navigate precisely; rapid, rhythmic strokes build into high-speed traversal. The multiplier is capped at `chainMultiplierCap` and decays toward 1.0 during idle. All chaining parameters (`chainWindowSeconds`, `chainMultiplierIncrement`, `chainMultiplierCap`, `chainMultiplierDecayRate`) are exposed as serialized fields for in-editor A/B tuning.
+**Chain multiplier.** Each successive stroke completed within `chainWindowSeconds` of the previous stroke end multiplies the current multiplier by `chainMultiplierGrowthFactor` (1.32 by default). This produces exponential growth: four chained strokes reach approximately 3× unchained speed. The multiplier is capped at `chainMultiplierCap` (10.0) and decays toward 1.0 at `chainMultiplierDecayRate` per second during idle.
 
-**User precision tolerance.** The system does not require the user to return their hand to any specific spatial origin between strokes. Each pinch onset latches a fresh `strokeOrigin`, so chaining is gated purely on elapsed time between strokes — not on spatial hand positioning. Additionally, because the hand may already be in motion at pinch onset, the wrist velocity at onset is sampled and factored into the stroke arc computation to prevent near-zero arc reads from fast pinches.
+**Y suppression.** Biomechanically arc-y strokes can introduce unintentional vertical drift. The PCA residual — mean perpendicular distance of samples from the fitted line — serves as a curvature proxy. High-residual strokes have their Y travel component dampened proportionally; low-residual strokes pass Y through unmodified, preserving intentional vertical locomotion (e.g., an overhead lat pulldown for ascent).
+
+**User precision.** Chaining is gated on elapsed time only — not on spatial hand positioning. Each pinch onset records a fresh stroke origin, so the user is free to re-pinch anywhere in their range of motion.
 
 ### Open Tuning Items
 
-The following parameters require empirical A/B testing during implementation and will be updated as calibration data is gathered:
+The following parameters require empirical calibration against actual stroke residual values from the test population:
 
-- `chainWindowSeconds` — the time budget between strokes that sustains a chain
-- `chainMultiplierIncrement` — per-stroke multiplier growth rate
-- `chainMultiplierCap` — maximum achievable multiplier
-- `chainMultiplierDecayRate` — idle bleed rate
-- Base impulse scaling relative to stroke arc and velocity
-- Deceleration tau after the final stroke in a chain
+- `maxResidualForFullSuppression` — residual at which Y is fully zeroed (currently 0.04m). Enable `enableDebugLogging` and observe residual values across stroke types before finalizing.
+- `minResidualForNoSuppression` — residual below which Y is untouched (currently 0.01m). Same calibration procedure.
 
 ---
 
@@ -86,15 +85,7 @@ All locomotion scenes are configured with identical environmental parameters (ti
 
 ## Remaining Locomotion Methods
 
-Two additional locomotion methods are planned for implementation following the completion of PinchToMove. Each will occupy its own scene and will be built against the same environmental template as all prior scenes. Detailed behavioral and mechanical specifications will be documented when implementation begins.
-
-### Bird Flight
-
-A biomimetic locomotion technique wherein the user flaps their arms to generate propulsion, mimicking the wing mechanics of bird flight. Further details to follow.
-
-### Controller Locomotion
-
-A traditional thumbstick-based continuous locomotion method, included as a control condition for comparison against gesture-driven alternatives. Further details to follow.
+The bird-flight locomotion concept was evaluated and dropped from the design space. The fourth locomotion method has not yet been selected. Candidates include a hybrid Viltrumite/PinchToMove system, traditional thumbstick-based controller locomotion, and novel gesture concepts not yet prototyped. The comparative study may also proceed with three locomotion methods if no fourth candidate proves suitable. A decision is pending.
 
 ---
 
