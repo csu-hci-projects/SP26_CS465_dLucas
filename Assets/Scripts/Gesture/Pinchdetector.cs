@@ -9,11 +9,12 @@ namespace AerialNav.Gesture
     // Tracks pinch midpoint (MiddleTip/ThumbTip average) for fine-grained stroke sensing.
     // Middle finger avoids Meta OS system gesture conflicts.
     // Requires: Meta Hand Tracking Aim enabled in OpenXR Feature Groups.
+    
     public class PinchDetector : MonoBehaviour
     {
-        // -----------------------------------------------------------------------
+
         // Inspector
-        // -----------------------------------------------------------------------
+
 
         [Header("Detection Settings")]
         [Tooltip("Strength threshold for pinch onset.")]
@@ -38,9 +39,9 @@ namespace AerialNav.Gesture
         [Header("Debug Logging")]
         [SerializeField] private bool enableDebugLogging = false;
 
-        // -----------------------------------------------------------------------
+
         // Public State
-        // -----------------------------------------------------------------------
+
 
         public bool IsPinching { get; private set; }
 
@@ -56,16 +57,16 @@ namespace AerialNav.Gesture
         // midpoint velocity averaged over onset window
         public Vector3 MidpointVelocityAtOnset { get; private set; }
 
-        // -----------------------------------------------------------------------
+
         // Events
-        // -----------------------------------------------------------------------
+
 
         public event Action OnPinchStarted;
         public event Action OnPinchReleased;
 
-        // -----------------------------------------------------------------------
+
         // Private
-        // -----------------------------------------------------------------------
+
 
         private XRHandSubsystem _handSubsystem;
         private MetaAimHand _metaAimHand;
@@ -82,9 +83,9 @@ namespace AerialNav.Gesture
 
         private const string LOG_TAG = "[PinchDetector]";
 
-        // -----------------------------------------------------------------------
+
         // Lifecycle
-        // -----------------------------------------------------------------------
+
 
         private void Awake()
         {
@@ -115,9 +116,9 @@ namespace AerialNav.Gesture
         private void OnDisable() => RestoreHandColor();
         private void OnDestroy() => RestoreHandColor();
 
-        // -----------------------------------------------------------------------
+
         // Subsystem Acquisition
-        // -----------------------------------------------------------------------
+
 
         private void TryAcquireSubsystems()
         {
@@ -134,9 +135,9 @@ namespace AerialNav.Gesture
                 Debug.Log($"{LOG_TAG} Subsystems acquired.");
         }
 
-        // -----------------------------------------------------------------------
+
         // Joint Sampling
-        // -----------------------------------------------------------------------
+
 
         private void SampleJoints()
         {
@@ -161,9 +162,9 @@ namespace AerialNav.Gesture
             }
         }
 
-        // -----------------------------------------------------------------------
+
         // Velocity Estimation
-        // -----------------------------------------------------------------------
+
 
         private void InitBuffer()
         {
@@ -187,9 +188,9 @@ namespace AerialNav.Gesture
             return (_midpointBuffer[newest] - _midpointBuffer[oldest]) / dt;
         }
 
-        // -----------------------------------------------------------------------
+
         // Pinch State Machine
-        // -----------------------------------------------------------------------
+
 
         private void UpdatePinchState()
         {
@@ -230,9 +231,7 @@ namespace AerialNav.Gesture
             OnPinchReleased?.Invoke();
         }
 
-        // -----------------------------------------------------------------------
         // Debug Visualization
-        // -----------------------------------------------------------------------
 
         private void FindHandRenderer()
         {
@@ -269,9 +268,9 @@ namespace AerialNav.Gesture
             rightHandRenderer.material.color = _originalHandColor;
         }
 
-        // -----------------------------------------------------------------------
+
         // Public Utilities
-        // -----------------------------------------------------------------------
+
 
         public void SetOnsetThreshold(float threshold)
         {
