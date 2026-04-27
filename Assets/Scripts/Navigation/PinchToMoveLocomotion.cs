@@ -26,9 +26,9 @@ namespace AerialNav.Navigation
 
     public class PinchToMoveController : MonoBehaviour
     {
-        // -----------------------------------------------------------------------
+
         // Inspector
-        // -----------------------------------------------------------------------
+
 
         [Header("References")]
         [SerializeField] private PinchDetector pinchDetector;
@@ -61,7 +61,7 @@ namespace AerialNav.Navigation
 
         [Tooltip("Exponential smoothing time constant for deceleration toward zero (seconds). " +
                  "Increase for a longer glide; decrease for a snappier stop.")]
-        [SerializeField] private float decelerationTau = 1.0f;
+        [SerializeField] private float decelerationTau = .5f;
 
         [Header("Chain Multiplier")]
         [Tooltip("Maximum elapsed time (seconds) between stroke end and next stroke onset " +
@@ -99,47 +99,43 @@ namespace AerialNav.Navigation
         [Header("Debug")]
         [SerializeField] private bool enableDebugLogging = false;
 
-        // -----------------------------------------------------------------------
+
         // Private — Stroke State
-        // -----------------------------------------------------------------------
+
 
         private List<Vector3> _strokeSamples = new List<Vector3>();
         private Vector3 _strokeOrigin;
         private Vector3 _travelDirection;
         private bool _strokeActive;
 
-        // -----------------------------------------------------------------------
+
         // Private — Velocity
-        // -----------------------------------------------------------------------
+
 
         private Vector3 _currentVelocity = Vector3.zero;
         private Vector3 _targetVelocity  = Vector3.zero;
 
-        // -----------------------------------------------------------------------
+
         // Private — Chain Multiplier
-        // -----------------------------------------------------------------------
+
 
         private float _chainMultiplier   = 1.0f;
         private float _lastStrokeEndTime = -999f;
         private bool  _chainActive       = false;
 
-        // -----------------------------------------------------------------------
+
         // Private — Settlement Detection
-        // -----------------------------------------------------------------------
+
 
         private Vector3[] _settlementBuffer;
         private int  _settlementIndex;
         private bool _settlementBufferFull;
 
-        // -----------------------------------------------------------------------
         // Const
-        // -----------------------------------------------------------------------
 
         private const string LOG_TAG = "[PinchToMoveController]";
 
-        // -----------------------------------------------------------------------
         // Lifecycle
-        // -----------------------------------------------------------------------
 
         private void Start()
         {
@@ -176,9 +172,7 @@ namespace AerialNav.Navigation
 
         private void OnDestroy() => UnsubscribeFromDetector();
 
-        // -----------------------------------------------------------------------
         // Detector Events
-        // -----------------------------------------------------------------------
 
         private void SubscribeToDetector()
         {
@@ -212,9 +206,7 @@ namespace AerialNav.Navigation
                 Debug.Log($"{LOG_TAG} Pinch released | velocity={_currentVelocity.magnitude:F1}m/s");
         }
 
-        // -----------------------------------------------------------------------
         // Stroke Lifecycle
-        // -----------------------------------------------------------------------
 
         private void BeginStroke()
         {
@@ -267,9 +259,7 @@ namespace AerialNav.Navigation
             }
         }
 
-        // -----------------------------------------------------------------------
         // Live Stroke Update
-        // -----------------------------------------------------------------------
 
         private void UpdateStroke()
         {
@@ -295,9 +285,7 @@ namespace AerialNav.Navigation
                           $"chainedSpeed={chainedSpeed:F1}m/s | dir={_travelDirection} | sign={strokeSign:F0}");
         }
 
-        // -----------------------------------------------------------------------
         // Y Suppression
-        // -----------------------------------------------------------------------
 
         // Dampens the Y component of the PCA axis proportionally to stroke curvature.
         // High residual = arc-y stroke = suppress Y to prevent unintentional vertical drift.
@@ -324,9 +312,7 @@ namespace AerialNav.Navigation
             return suppressed.normalized;
         }
 
-        // -----------------------------------------------------------------------
         // Line of Best Fit (PCA)
-        // -----------------------------------------------------------------------
 
         // Fits a line through accumulated samples via PCA on the centroid-centered cloud.
         // Returns principal axis as direction, sign derived from net displacement vs axis,
@@ -381,9 +367,9 @@ namespace AerialNav.Navigation
             return true;
         }
 
-        // -----------------------------------------------------------------------
+
         // Chain Multiplier Decay
-        // -----------------------------------------------------------------------
+
 
         private void DecayChainMultiplier()
         {
@@ -401,9 +387,9 @@ namespace AerialNav.Navigation
             }
         }
 
-        // -----------------------------------------------------------------------
+
         // Settlement Detection
-        // -----------------------------------------------------------------------
+
 
         private void InitSettlementBuffer()
         {
@@ -441,9 +427,9 @@ namespace AerialNav.Navigation
             return totalDisplacement < settlementDisplacementThreshold;
         }
 
-        // -----------------------------------------------------------------------
+
         // Movement
-        // -----------------------------------------------------------------------
+
 
         private void ApplyVelocity()
         {
@@ -476,9 +462,9 @@ namespace AerialNav.Navigation
             }
         }
 
-        // -----------------------------------------------------------------------
+
         // Reference Validation
-        // -----------------------------------------------------------------------
+
 
         private void ValidateReferences()
         {
