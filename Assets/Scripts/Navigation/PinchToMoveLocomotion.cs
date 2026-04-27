@@ -32,7 +32,7 @@ namespace AerialNav.Navigation
 
         [Header("Phase 1 — Stroke Arc")]
         [Tooltip("Arc-to-speed multiplier. Primary speed dial.")]
-        [SerializeField] private float arcToSpeedScale = 500f;
+        [SerializeField] private float arcToSpeedScale = 600f;
 
         [Tooltip("Speed cap regardless of arc (m/s).")]
         [SerializeField] private float maxSpeed = 4000f;
