@@ -4,7 +4,7 @@ using UnityEngine;
 [RequireComponent(typeof(Cesium3DTileset))]
 public class TileQualityController : MonoBehaviour
 {
-    [SerializeField] private float activeSse = 8f;       // high quality in view
+    [SerializeField] private float activeSse = 4f;       // high quality in view
     [SerializeField] private float culledSse = 4096f;    // aggressively coarse out-of-view
 
     private Cesium3DTileset _tileset;

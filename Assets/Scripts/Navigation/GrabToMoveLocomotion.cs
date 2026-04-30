@@ -1,95 +1,81 @@
 using System.Collections.Generic;
 using UnityEngine;
-using AerialNav.Gesture;
 
 namespace AerialNav.Navigation
 {
-    // Phase 1   — live stroke locomotion via line-of-best-fit through pinch midpoint samples.
-    // Phase 1.5 — stroke end detection via displacement delta window; exponential decel to zero.
-    // Phase 2   — chain multiplier: successive strokes within chainWindowSeconds accumulate a
-    //             speed scalar, capped at chainMultiplierCap, decaying during idle.
-    // Phase 2.5 — residual-based Y suppression: PCA fit residual is used to determine how
-    //             arc-y the stroke is. High residual (curved stroke) dampens the Y component
-    //             of the travel direction, preventing unintentional vertical drift from
-    //             biomechanically arc-y strokes (e.g. bicep curl for forward locomotion).
-    //             Low residual (clean linear stroke) passes Y through unmodified, preserving
-    //             intentional vertical locomotion (e.g. overhead lat pulldown for ascent).
+    // GrabToMove — fist-based stroke locomotion.
+    // Replaces PinchToMove; reuses FistDetector for gesture input.
+    // Stroke tracking uses right wrist position via XRHandSubsystem,
+    // mirroring PinchToMove's midpoint approach but anchored to the wrist.
     //
-    // Stroke end triggers:
-    //   (a) Pinch released.
-    //   (b) Hand settles while pinched — cumulative midpoint displacement over the last
-    //       settlementFrameWindow frames falls below settlementDisplacementThreshold.
+    // Come-hither boost: strokes directed toward the head/chest receive a
+    // configurable speed multiplier proportional to their alignment with the
+    // head-to-wrist-origin vector. Lateral and push-away strokes are unaffected.
     //
-    // Chain multiplier increments on stroke END (committed stroke earns the bonus).
-    // Multiplier resets to 1.0 if elapsed time since last stroke end exceeds chainWindowSeconds.
-    // Multiplier decays toward 1.0 continuously during idle at chainMultiplierDecayRate/sec.
+    // Stroke lifecycle, PCA line fitting, chain multiplier, Y suppression,
+    // settlement detection, and terrain floor enforcement are preserved from
+    // PinchToMove Phase 1–2.5.
 
-    public class PinchToMoveController : MonoBehaviour
+    public class GrabToMoveController : MonoBehaviour
     {
 
         // Inspector
 
 
         [Header("References")]
-        [SerializeField] private PinchDetector pinchDetector;
+        [SerializeField] private FistDetector fistDetector;
         [SerializeField] private Transform xrOrigin;
         [SerializeField] private Transform headTransform;
+        [SerializeField] private Transform rightWristTransform;
 
         [Header("Stroke Arc")]
         [Tooltip("Arc-to-speed multiplier. Primary speed dial.")]
-        [SerializeField] private float arcToSpeedScale = 600f;
+        [SerializeField] private float arcToSpeedScale = 2000f;
 
         [Tooltip("Speed cap before chain multiplier is applied (m/s).")]
         [SerializeField] private float maxSpeed = 4000f;
 
-        [Tooltip("Minimum midpoint displacement from stroke origin to begin locomotion (m). Suppresses tremor.")]
+        [Tooltip("Minimum wrist displacement from stroke origin to begin locomotion (m). Suppresses tremor.")]
         [SerializeField] private float minimumArcThreshold = 0.02f;
 
         [Tooltip("Minimum samples before best-fit line is computed.")]
         [SerializeField] [Min(2)] private int minimumRegressionSamples = 3;
 
+        [Header("Come-Hither Boost")]
+        [Tooltip("Speed multiplier applied when stroke arc is directed fully toward the head/chest. " +
+                 "Scales linearly with alignment — lateral/push-away strokes receive no boost.")]
+        [SerializeField] private float comeHitherBoostMultiplier = 2.5f;
+
         [Header("Stroke End Detection")]
-        [Tooltip("Number of frames examined to determine if the hand has settled. " +
-                 "Increase if strokes end prematurely on slow movement; " +
-                 "decrease if settlement detection feels sluggish.")]
+        [Tooltip("Number of frames examined to determine if the hand has settled.")]
         [SerializeField] [Min(2)] private int settlementFrameWindow = 5;
 
-        [Tooltip("Cumulative midpoint displacement (m) across the settlement window required " +
-                 "to keep a stroke active. Increase if tremor sustains strokes falsely; " +
-                 "decrease if slow deliberate strokes are being cut short.")]
+        [Tooltip("Cumulative wrist displacement (m) across the settlement window required " +
+                 "to keep a stroke active.")]
         [SerializeField] private float settlementDisplacementThreshold = 0.005f;
 
-        [Tooltip("Exponential smoothing time constant for deceleration toward zero (seconds). " +
-                 "Increase for a longer glide; decrease for a snappier stop.")]
-        [SerializeField] private float decelerationTau = .5f;
+        [Tooltip("Exponential smoothing time constant for deceleration toward zero (seconds).")]
+        [SerializeField] private float decelerationTau = 0.5f;
 
         [Header("Chain Multiplier")]
         [Tooltip("Maximum elapsed time (seconds) between stroke end and next stroke onset " +
-                 "for the chain to remain active. Exceeding this resets multiplier to 1.0.")]
-        [SerializeField] private float chainWindowSeconds = 2.0f;
+                 "for the chain to remain active.")]
+        [SerializeField] private float chainWindowSeconds = 3.0f;
 
-        [Tooltip("Per-stroke multiplicative growth factor applied within the chain window. " +
-                 "Must be above 1.0. At 1.32, four strokes reaches ~3x.")]
+        [Tooltip("Per-stroke multiplicative growth factor applied within the chain window.")]
         [SerializeField] private float chainMultiplierGrowthFactor = 1.32f;
 
-        [Tooltip("Upper bound on the chain multiplier. " +
-                 "Increase to allow higher top-end chained speed; decrease to cap it sooner.")]
+        [Tooltip("Upper bound on the chain multiplier.")]
         [SerializeField] private float chainMultiplierCap = 10.0f;
 
-        [Tooltip("Rate at which the chain multiplier decays toward 1.0 per second during idle. " +
-                 "Increase for a faster bleed; decrease to hold the multiplier longer between strokes.")]
+        [Tooltip("Rate at which the chain multiplier decays toward 1.0 per second during idle.")]
         [SerializeField] private float chainMultiplierDecayRate = 0.5f;
 
         [Header("Y Suppression")]
-        [Tooltip("PCA residual magnitude at which Y suppression is fully applied (0 Y contribution). " +
-                 "Strokes with residual at or above this value are considered maximally curved. " +
-                 "Decrease if forward strokes still drift vertically; increase if intentional " +
-                 "vertical strokes are being suppressed.")]
+        [Tooltip("PCA residual at which Y is fully zeroed. Prevents vertical drift from arc-y strokes.")]
         [SerializeField] private float maxResidualForFullSuppression = 0.04f;
 
-        [Tooltip("PCA residual magnitude below which no Y suppression is applied. " +
-                 "Strokes with residual at or below this are considered clean/linear. " +
-                 "Increase if minor arc-y forward strokes still drift vertically.")]
+        [Tooltip("PCA residual below which Y is untouched. Preserves intentional vertical locomotion.")]
         [SerializeField] private float minResidualForNoSuppression = 0.01f;
 
         [Header("Terrain Safety")]
@@ -98,6 +84,12 @@ namespace AerialNav.Navigation
 
         [Header("Debug")]
         [SerializeField] private bool enableDebugLogging = false;
+
+
+        // Private — Fist Edge Detection
+
+
+        private bool _prevFistState = false;
 
 
         // Private — Stroke State
@@ -131,26 +123,27 @@ namespace AerialNav.Navigation
         private int  _settlementIndex;
         private bool _settlementBufferFull;
 
-        // Const
+        private const string LOG_TAG = "[GrabToMoveController]";
 
-        private const string LOG_TAG = "[PinchToMoveController]";
 
         // Lifecycle
+
 
         private void Start()
         {
             InitSettlementBuffer();
             ValidateReferences();
-            SubscribeToDetector();
         }
 
         private void Update()
         {
             if (!ReferencesValid()) return;
 
-            if (pinchDetector.IsPinching)
+            HandleFistEdges();
+
+            if (fistDetector.IsRightFist)
             {
-                RecordSettlementSample(pinchDetector.PinchMidpointPosition);
+                RecordSettlementSample(rightWristTransform.position);
 
                 if (_strokeActive)
                 {
@@ -170,48 +163,50 @@ namespace AerialNav.Navigation
             EnforceTerrainFloor();
         }
 
-        private void OnDestroy() => UnsubscribeFromDetector();
 
-        // Detector Events
+        // Fist Edge Detection
 
-        private void SubscribeToDetector()
+
+        // Detects onset and release edges from FistDetector's boolean state,
+        // mirroring the event-driven pattern from PinchDetector.
+        private void HandleFistEdges()
         {
-            if (pinchDetector == null) return;
-            pinchDetector.OnPinchStarted  += HandlePinchStarted;
-            pinchDetector.OnPinchReleased += HandlePinchReleased;
+            bool currentFist = fistDetector.IsRightFist;
+
+            if (currentFist && !_prevFistState)
+                HandleGrabStarted();
+            else if (!currentFist && _prevFistState)
+                HandleGrabReleased();
+
+            _prevFistState = currentFist;
         }
 
-        private void UnsubscribeFromDetector()
-        {
-            if (pinchDetector == null) return;
-            pinchDetector.OnPinchStarted  -= HandlePinchStarted;
-            pinchDetector.OnPinchReleased -= HandlePinchReleased;
-        }
-
-        private void HandlePinchStarted()
+        private void HandleGrabStarted()
         {
             BeginStroke();
 
             if (enableDebugLogging)
-                Debug.Log($"{LOG_TAG} Pinch started | origin={_strokeOrigin} | " +
+                Debug.Log($"{LOG_TAG} Grab started | origin={_strokeOrigin} | " +
                           $"multiplier={_chainMultiplier:F2}");
         }
 
-        private void HandlePinchReleased()
+        private void HandleGrabReleased()
         {
             if (_strokeActive)
-                EndStroke("pinch released");
+                EndStroke("grab released");
 
             if (enableDebugLogging)
-                Debug.Log($"{LOG_TAG} Pinch released | velocity={_currentVelocity.magnitude:F1}m/s");
+                Debug.Log($"{LOG_TAG} Grab released | velocity={_currentVelocity.magnitude:F1}m/s");
         }
 
+
         // Stroke Lifecycle
+
 
         private void BeginStroke()
         {
             _strokeSamples.Clear();
-            _strokeOrigin = pinchDetector.PinchMidpointPosition;
+            _strokeOrigin = rightWristTransform.position;
             _strokeActive = true;
             ClearSettlementBuffer();
         }
@@ -247,25 +242,27 @@ namespace AerialNav.Navigation
         private void TryReinitiateStroke()
         {
             float displacement = Vector3.Distance(
-                pinchDetector.PinchMidpointPosition, _strokeOrigin);
+                rightWristTransform.position, _strokeOrigin);
 
             if (displacement >= minimumArcThreshold)
             {
                 BeginStroke();
 
                 if (enableDebugLogging)
-                    Debug.Log($"{LOG_TAG} Stroke re-initiated mid-pinch | " +
+                    Debug.Log($"{LOG_TAG} Stroke re-initiated mid-grab | " +
                               $"new origin={_strokeOrigin}");
             }
         }
 
+
         // Live Stroke Update
+
 
         private void UpdateStroke()
         {
-            _strokeSamples.Add(pinchDetector.PinchMidpointPosition);
+            _strokeSamples.Add(rightWristTransform.position);
 
-            float arc = Vector3.Distance(pinchDetector.PinchMidpointPosition, _strokeOrigin);
+            float arc = Vector3.Distance(rightWristTransform.position, _strokeOrigin);
             if (arc < minimumArcThreshold) return;
             if (_strokeSamples.Count < minimumRegressionSamples) return;
 
@@ -274,49 +271,52 @@ namespace AerialNav.Navigation
 
             _travelDirection = ApplyYSuppression(bestFitDirection, residual);
 
-            float baseSpeed    = Mathf.Min(arc * arcToSpeedScale, maxSpeed);
+            // Come-hither boost: dot net displacement against stroke-origin-to-head vector.
+            // Fully toward head = alignment 1.0 = full boost multiplier.
+            // Lateral or push-away = alignment ~0 = no boost.
+            Vector3 towardBody        = (headTransform.position - _strokeOrigin).normalized;
+            Vector3 netDisplacement   = (rightWristTransform.position - _strokeOrigin).normalized;
+            float comeHitherAlignment = Mathf.Clamp01(Vector3.Dot(netDisplacement, towardBody));
+            float speedBoost          = Mathf.Lerp(1f, comeHitherBoostMultiplier, comeHitherAlignment);
+
+            float baseSpeed    = Mathf.Min(arc * arcToSpeedScale * speedBoost, maxSpeed);
             float chainedSpeed = Mathf.Min(baseSpeed * _chainMultiplier, maxSpeed * chainMultiplierCap);
             _targetVelocity    = _travelDirection * (chainedSpeed * strokeSign);
             _currentVelocity   = _targetVelocity;
 
             if (enableDebugLogging)
                 Debug.Log($"{LOG_TAG} Stroke | arc={arc:F3}m | residual={residual:F4} | " +
+                          $"alignment={comeHitherAlignment:F2} | boost={speedBoost:F2} | " +
                           $"baseSpeed={baseSpeed:F1} | multiplier={_chainMultiplier:F2} | " +
-                          $"chainedSpeed={chainedSpeed:F1}m/s | dir={_travelDirection} | sign={strokeSign:F0}");
+                          $"chainedSpeed={chainedSpeed:F1}m/s | dir={_travelDirection}");
         }
+
 
         // Y Suppression
 
-        // Dampens the Y component of the PCA axis proportionally to stroke curvature.
-        // High residual = arc-y stroke = suppress Y to prevent unintentional vertical drift.
-        // Low residual  = linear stroke = pass Y through unmodified for intentional vertical travel.
+
         private Vector3 ApplyYSuppression(Vector3 direction, float residual)
         {
-            // Suppression weight: 0 = no suppression, 1 = full suppression.
-            // Increases linearly from minResidualForNoSuppression to maxResidualForFullSuppression.
             float suppressionWeight = Mathf.InverseLerp(
                 minResidualForNoSuppression,
                 maxResidualForFullSuppression,
                 residual);
 
-            // Blend Y toward zero based on suppression weight.
             Vector3 suppressed = new Vector3(
                 direction.x,
                 Mathf.Lerp(direction.y, 0f, suppressionWeight),
                 direction.z);
 
-            // Renormalize — flattening Y changes magnitude.
             if (suppressed.sqrMagnitude < 0.0001f)
-                return direction; // fallback: suppression collapsed the vector, use original
+                return direction;
 
             return suppressed.normalized;
         }
 
+
         // Line of Best Fit (PCA)
 
-        // Fits a line through accumulated samples via PCA on the centroid-centered cloud.
-        // Returns principal axis as direction, sign derived from net displacement vs axis,
-        // and mean residual (average perpendicular distance of samples from the fitted line).
+
         private bool TryFitLine(List<Vector3> samples, out Vector3 direction, out float sign, out float residual)
         {
             direction = Vector3.forward;
@@ -349,19 +349,17 @@ namespace AerialNav.Navigation
 
             direction = axis;
 
-            // Compute mean residual: average perpendicular distance from each sample to the fitted line.
-            // Residual = magnitude of the component of (sample - centroid) perpendicular to axis.
             float totalResidual = 0f;
             foreach (var s in samples)
             {
-                Vector3 d          = s - centroid;
-                Vector3 projected  = Vector3.Dot(d, axis) * axis;
-                Vector3 perp       = d - projected;
-                totalResidual     += perp.magnitude;
+                Vector3 d         = s - centroid;
+                Vector3 projected = Vector3.Dot(d, axis) * axis;
+                Vector3 perp      = d - projected;
+                totalResidual    += perp.magnitude;
             }
             residual = totalResidual / samples.Count;
 
-            Vector3 netDisplacement = pinchDetector.PinchMidpointPosition - _strokeOrigin;
+            Vector3 netDisplacement = rightWristTransform.position - _strokeOrigin;
             sign = -Mathf.Sign(Vector3.Dot(netDisplacement, direction));
 
             return true;
@@ -468,11 +466,11 @@ namespace AerialNav.Navigation
 
         private void ValidateReferences()
         {
-            if (pinchDetector == null)
+            if (fistDetector == null)
             {
-                pinchDetector = GetComponent<PinchDetector>();
-                if (pinchDetector == null)
-                    Debug.LogError($"{LOG_TAG} PinchDetector not found on this GameObject.");
+                fistDetector = GetComponent<FistDetector>();
+                if (fistDetector == null)
+                    Debug.LogError($"{LOG_TAG} FistDetector not found on this GameObject.");
             }
 
             if (xrOrigin == null)
@@ -496,9 +494,15 @@ namespace AerialNav.Navigation
                 }
                 else Debug.LogError($"{LOG_TAG} Main Camera not found.");
             }
+
+            if (rightWristTransform == null)
+                Debug.LogError($"{LOG_TAG} Right Wrist Transform must be assigned in Inspector.");
         }
 
         private bool ReferencesValid() =>
-            pinchDetector != null && xrOrigin != null && headTransform != null;
+            fistDetector != null
+            && xrOrigin != null
+            && headTransform != null
+            && rightWristTransform != null;
     }
 }

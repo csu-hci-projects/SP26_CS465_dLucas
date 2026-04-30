@@ -6,10 +6,11 @@ using UnityEngine.XR.Hands;
 namespace AerialNav.Gesture
 {
     // Detects middle-thumb pinch via MetaAimHand.
+    // Requires simultaneous ring finger engagement to prevent accidental activation.
     // Tracks pinch midpoint (MiddleTip/ThumbTip average) for fine-grained stroke sensing.
     // Middle finger avoids Meta OS system gesture conflicts.
     // Requires: Meta Hand Tracking Aim enabled in OpenXR Feature Groups.
-    
+
     public class PinchDetector : MonoBehaviour
     {
 
@@ -22,6 +23,10 @@ namespace AerialNav.Gesture
 
         [Tooltip("Strength threshold for pinch release. Gap prevents chatter.")]
         [SerializeField] [Range(0f, 1f)] private float pinchReleaseThreshold = 0.5f;
+
+        [Tooltip("Ring finger must also meet this strength to confirm pinch onset. " +
+                 "Prevents accidental activation from index-thumb gestures bleeding into middle channel.")]
+        [SerializeField] [Range(0f, 1f)] private float ringConfirmThreshold = 0.6f;
 
         [Header("Velocity Sampling")]
         [Tooltip("Frame window for onset velocity estimation.")]
@@ -202,10 +207,16 @@ namespace AerialNav.Gesture
             }
 
             PinchStrength = _metaAimHand.pinchStrengthMiddle.ReadValue();
+            float ringStrength = _metaAimHand.pinchStrengthRing.ReadValue();
 
-            if (!IsPinching && PinchStrength >= pinchOnsetThreshold)
+            bool middleEngaged = PinchStrength >= pinchOnsetThreshold;
+            bool ringConfirmed = ringStrength  >= ringConfirmThreshold;
+            bool bothReleased  = PinchStrength <  pinchReleaseThreshold
+                              && ringStrength  <  pinchReleaseThreshold;
+
+            if (!IsPinching && middleEngaged && ringConfirmed)
                 RegisterOnset();
-            else if (IsPinching && PinchStrength < pinchReleaseThreshold)
+            else if (IsPinching && bothReleased)
                 RegisterRelease();
         }
 
@@ -231,7 +242,9 @@ namespace AerialNav.Gesture
             OnPinchReleased?.Invoke();
         }
 
+
         // Debug Visualization
+
 
         private void FindHandRenderer()
         {
